@@ -53,7 +53,7 @@ async function fetchFromCricketData() {
       const wins = parseInt(team.wins) || 0;
       const pts = wins * 2; // IPL: 2 points per win
       return {
-        team: team.shortname || normalizeTeamName(team.teamname || ''),
+        team: normalizeTeamName(team.shortname || team.teamname || ''),
         m: parseInt(team.matches) || 0,
         w: wins,
         l: parseInt(team.loss) || 0,
@@ -93,6 +93,7 @@ function normalizeTeamName(name) {
     'Chennai Super Kings': 'CSK',
     'Royal Challengers Bengaluru': 'RCB',
     'Royal Challengers Bangalore': 'RCB',
+    'RCBW': 'RCB',
     'Delhi Capitals': 'DC',
     'Gujarat Titans': 'GT',
     'Kolkata Knight Riders': 'KKR',
@@ -102,7 +103,7 @@ function normalizeTeamName(name) {
     'Punjab Kings': 'PBKS',
   };
 
-  return teamMap[name] || name.substring(0, 4).toUpperCase();
+  return teamMap[name] || name;
 }
 
 /**
