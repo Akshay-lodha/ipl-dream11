@@ -198,14 +198,15 @@ export default async function handler(req, res) {
     // 1. Try Primary: Self-Hosted Scraper (no rate limits)
     console.log('[multi-source] Trying source 0: Self-Hosted Scraper');
     try {
-      const scraperRes = await fetch('https://ipl-dream11.vercel.app/api/scraper-service?season=2026');
+      const scraperUrl = process.env.SCRAPER_URL || 'https://web-production-c548f.up.railway.app';
+      const scraperRes = await fetch(`${scraperUrl}/api/teams`);
       if (scraperRes.ok) {
         const scraperData = await scraperRes.json();
         if (scraperData.teams && scraperData.teams.length > 0) {
           console.log(`[multi-source] ✓ Using Self-Hosted Scraper`);
           return res.status(200).json({
             teams: scraperData.teams,
-            source: 'Self-Hosted Scraper (Cricbuzz)',
+            source: scraperData.source || 'Self-Hosted Scraper (Cricbuzz)',
             timestamp: new Date().toISOString(),
           });
         }
