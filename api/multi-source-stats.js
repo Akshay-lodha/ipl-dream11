@@ -174,8 +174,8 @@ function isValidResponse(data) {
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   const season = req.query.season || '2026';
-  const cacheAge = 300; // 5 min cache
-  res.setHeader('Cache-Control', `s-maxage=${cacheAge}, stale-while-revalidate=60`);
+  const cacheAge = 60; // 1 min cache (fast updates from manual admin dashboard)
+  res.setHeader('Cache-Control', `s-maxage=${cacheAge}, stale-while-revalidate=30`);
 
   const cacheKey = `multi-source-stats_${season}`;
 
