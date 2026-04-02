@@ -14,7 +14,7 @@ const CACHE_TTL = 300; // 5 minutes in seconds
 const CACHE_KEY = 'cricketdata_ipl_2026_points';
 
 // IPL 2026 Series ID from CricketData
-const IPL_2026_SERIES_ID = '5969'; // IPL 2026
+const IPL_2026_SERIES_ID = '87c62aac-bc3c-4738-ab93-19da0690488f'; // IPL 2026
 
 /**
  * Fetch points table from CricketData.org
