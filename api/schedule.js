@@ -1,18 +1,22 @@
 /**
  * GET /api/schedule
  *
- * Fetches IPL 2025 match schedule from CricAPI and transforms it
+ * Fetches IPL match schedule from CricAPI and transforms it
  * into the shape the frontend expects:
  *   [ { date: "Tue, Mar 18", matches: [ { id, num, t1, t2, time, venue, status, score1?, score2?, winner? } ] } ]
  *
- * ENV vars required:
- *   CRICKET_API_KEY  – your CricAPI key
- *   IPL_SERIES_ID    – IPL 2025 series UUID from CricAPI
- *
- * Caching: Stores response in memory for 1 hour to avoid hitting CricAPI rate limit
+ * Key + Series selection:
+ * - If env vars are present, we use them.
+ * - Otherwise, we fall back to the same 2026 key/series used by `api/cricket-data-api.js`
+ *   so the weblink doesn't silently fall back to mock schedule data.
  */
 
 import { getCached, setCached } from './cache.js';
+
+// Keep these in sync with `api/cricket-data-api.js` (2026 live).
+const DEFAULT_CRICAPI_KEY_2026 = 'b50985a1-9c95-4adb-806c-94e3dde48fc9';
+const DEFAULT_SERIES_ID_2026 = '87c62aac-bc3c-4738-ab93-19da0690488f';
+const CRICAPI_BASE = 'https://api.cricapi.com/v1';
 
 const TEAM_MAP = {
   'Mumbai Indians':              'MI',
@@ -73,11 +77,22 @@ export default async function handler(req, res) {
 
   const { CRICKET_API_KEY, IPL_SERIES_ID, IPL_2025_SERIES_ID } = process.env;
 
-  if (!CRICKET_API_KEY || !IPL_SERIES_ID) {
-    return res.status(500).json({ error: 'Missing env vars: CRICKET_API_KEY, IPL_SERIES_ID' });
+  // Use env-configured series IDs if available (supports switching between seasons).
+  // Otherwise fall back to a known-good 2026 series ID so the weblink works out of the box.
+  const seriesId =
+    ((season === '2025' && IPL_2025_SERIES_ID) ? IPL_2025_SERIES_ID : IPL_SERIES_ID)?.trim()
+    || (season === '2025' ? '' : DEFAULT_SERIES_ID_2026);
+
+  // Prefer env key, otherwise default to the 2026 key used by the points table integration.
+  const apiKey = (CRICKET_API_KEY && CRICKET_API_KEY.trim()) || DEFAULT_CRICAPI_KEY_2026;
+
+  if (!seriesId) {
+    return res.status(500).json({
+      error: 'Missing series id',
+      detail: 'Set IPL_SERIES_ID (and optionally IPL_2025_SERIES_ID) in environment variables.',
+    });
   }
 
-  const seriesId = ((season === '2025' && IPL_2025_SERIES_ID) ? IPL_2025_SERIES_ID : IPL_SERIES_ID).trim();
   const cacheKey = `schedule_${season}_${seriesId}`;
 
   try {
@@ -87,10 +102,8 @@ export default async function handler(req, res) {
       return res.status(200).json(cached);
     }
 
-    // Using CricketData.org (100K calls/hour free tier)
-    const url =
-      `https://cricketdata.org/api/v1/series_info` +
-      `?apikey=${CRICKET_API_KEY}&id=${seriesId}`;
+    // CricAPI (same provider used by `api/cricket-data-api.js`)
+    const url = `${CRICAPI_BASE}/series_info?apikey=${apiKey}&id=${seriesId}`;
 
     const upstream = await fetch(url, { headers: { Accept: 'application/json' } });
     if (!upstream.ok) throw new Error(`CricAPI responded ${upstream.status}`);
