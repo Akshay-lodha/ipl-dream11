@@ -160,6 +160,18 @@ function buildFormMap(completedMatches) {
 }
 
 /**
+ * Convert cricket overs notation to decimal overs.
+ * In cricket, 15.4 means 15 overs and 4 balls (not 15.4 overs).
+ * 1 over = 6 balls, so 15.4 = 15 + 4/6 = 15.6667
+ */
+function cricketOvers(o) {
+  const val = parseFloat(o) || 0;
+  const whole = Math.floor(val);
+  const balls = Math.round((val - whole) * 10);
+  return whole + balls / 6;
+}
+
+/**
  * Build NRR map from match scorecards.
  * Only fetches scorecards that aren't already cached (completed matches never change).
  *
@@ -219,8 +231,8 @@ async function buildNrrMap(completedMatches) {
     if (!teamStats[team1]) teamStats[team1] = { runsFor: 0, oversFor: 0, runsAgainst: 0, oversAgainst: 0 };
     if (!teamStats[team2]) teamStats[team2] = { runsFor: 0, oversFor: 0, runsAgainst: 0, oversAgainst: 0 };
 
-    const overs1 = parseFloat(inning1.o) || 0;
-    const overs2 = parseFloat(inning2.o) || 0;
+    const overs1 = cricketOvers(inning1.o);
+    const overs2 = cricketOvers(inning2.o);
     const runs1 = parseInt(inning1.r) || 0;
     const runs2 = parseInt(inning2.r) || 0;
 
