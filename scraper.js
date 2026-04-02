@@ -330,6 +330,7 @@ app.get('/status', (req, res) => {
       teams: '/api/teams',
       health: '/health',
       status: '/status',
+      update: '/api/update (POST)',
     },
     cache: {
       enabled: true,
@@ -338,6 +339,53 @@ app.get('/status', (req, res) => {
       lastUpdate: lastScrapedAt,
     },
   });
+});
+
+// Manual update endpoint - POST new teams data
+app.post('/api/update', (req, res) => {
+  try {
+    const { teams, secret } = req.body;
+
+    // Simple auth check
+    const UPDATE_SECRET = process.env.UPDATE_SECRET || 'manual-update-2026';
+    if (secret !== UPDATE_SECRET) {
+      return res.status(401).json({ error: 'Unauthorized' });
+    }
+
+    if (!Array.isArray(teams) || teams.length < 8) {
+      return res.status(400).json({
+        error: 'Invalid data',
+        message: 'Expected array of teams with at least 8 entries',
+      });
+    }
+
+    // Validate team structure
+    const validTeams = teams.map(t => ({
+      team: String(t.team).toUpperCase(),
+      m: parseInt(t.m) || 0,
+      w: parseInt(t.w) || 0,
+      l: parseInt(t.l) || 0,
+      nrr: parseFloat(t.nrr) || 0,
+      pts: parseInt(t.pts) || 0,
+      form: Array.isArray(t.form) ? t.form : [],
+    }));
+
+    // Sort by points and NRR
+    cachedTeams = validTeams.sort((a, b) => b.pts - a.pts || b.nrr - a.nrr);
+    lastScrapedAt = new Date();
+
+    console.log(`[Manual Update] Updated ${cachedTeams.length} teams at ${lastScrapedAt.toISOString()}`);
+
+    res.json({
+      success: true,
+      message: `Updated ${cachedTeams.length} teams`,
+      lastUpdate: lastScrapedAt,
+      teams: cachedTeams,
+    });
+  } catch (err) {
+    console.error('[Manual Update] Error:', err.message);
+    res.status(500).json({ error: 'Update failed', message: err.message });
+  }
 });
 
 /**
