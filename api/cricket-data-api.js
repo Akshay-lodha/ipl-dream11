@@ -9,7 +9,7 @@
 
 import { getCached, setCached } from './cache.js';
 
-const API_KEY = process.env.CRICKETDATA_API_KEY;
+const API_KEY = 'b50985a1-9c95-4adb-806c-94e3dde48fc9';
 const CACHE_TTL = 300; // 5 minutes in seconds
 const CACHE_KEY = 'cricketdata_ipl_2026_points';
 
