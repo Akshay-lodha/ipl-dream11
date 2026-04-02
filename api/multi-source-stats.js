@@ -52,6 +52,7 @@ export default async function handler(req, res) {
         estimated_daily_usage: '288 calls (14%)',
         cache_duration: '5 minutes',
       },
+      _debug: 'NEW_CRICKETDATA_CODE_RUNNING',
     });
   } catch (err) {
     console.error('[API] Error:', err.message);
