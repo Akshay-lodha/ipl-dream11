@@ -231,10 +231,13 @@ async function buildNrrMap(completedMatches) {
     if (!teamStats[team1]) teamStats[team1] = { runsFor: 0, oversFor: 0, runsAgainst: 0, oversAgainst: 0 };
     if (!teamStats[team2]) teamStats[team2] = { runsFor: 0, oversFor: 0, runsAgainst: 0, oversAgainst: 0 };
 
-    const overs1 = cricketOvers(inning1.o);
-    const overs2 = cricketOvers(inning2.o);
     const runs1 = parseInt(inning1.r) || 0;
     const runs2 = parseInt(inning2.r) || 0;
+    const wkts1 = parseInt(inning1.w) || 0;
+    const wkts2 = parseInt(inning2.w) || 0;
+    // ICC NRR rule: if a team is all out (10 wkts), count full 20 overs
+    const overs1 = wkts1 >= 10 ? 20 : cricketOvers(inning1.o);
+    const overs2 = wkts2 >= 10 ? 20 : cricketOvers(inning2.o);
 
     // Team1 batted first: their runs scored = runs1, overs faced = overs1
     teamStats[team1].runsFor += runs1;
