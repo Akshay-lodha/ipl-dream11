@@ -1,0 +1,775 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>IPL 2025</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto:wght@500&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    /* ── Figma design tokens ── */
+    :root {
+      --bg:          #0f0e0d;
+      --card:        #1c1917;
+      --tab-active:  #292524;
+      --text-1:      #ffffff;
+      --text-2:      #d6d3d1;
+      --text-3:      #a6a09b;
+      --blue:        #0a84ff;
+      --border:      rgba(255,255,255,0.06);
+      /* Form pills */
+      --w-bg:        rgba(0,201,81,0.15);
+      --w-text:      #05df72;
+      --l-bg:        rgba(255,105,0,0.15);
+      --l-text:      #ff8904;
+      --d-bg:        #292524;
+      --d-text:      #d6d3d1;
+      /* Layout */
+      --fz-col-w:    118px;   /* frozen column width: 12+18+8+24+8+40+8 */
+      --row-h:        56px;   /* team row height     */
+      --hdr-h:        36px;   /* column-label row    */
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-1);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Page Header ── */
+    .page-header { position: sticky; top: 0; z-index: 10; background: #000; }
+
+    .status-bar {
+      height: 50px; display: flex; align-items: flex-end;
+      padding: 0 16px 8px; background: #000;
+    }
+    .status-bar-time {
+      font-family: -apple-system, 'SF Pro Text', sans-serif;
+      font-size: 17px; font-weight: 600; color: #fff;
+      letter-spacing: -0.2px; flex: 1;
+    }
+    .status-bar-icons { display: flex; align-items: center; gap: 7px; }
+
+    .app-bar {
+      height: 56px; display: flex; align-items: center;
+      justify-content: space-between; padding: 0 16px; background: #000;
+    }
+    .back-btn {
+      width: 40px; height: 40px;
+      background: rgba(255,255,255,0.10); border: none; border-radius: 30px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; flex-shrink: 0; transition: opacity 0.15s;
+    }
+    .back-btn:active { opacity: 0.6; }
+
+    .refresh-btn {
+      background: none; border: none; color: var(--blue);
+      font-size: 22px; cursor: pointer; padding: 4px; line-height: 1;
+      transition: opacity 0.2s; opacity: 0; pointer-events: none;
+    }
+    .refresh-btn.spinning { animation: spin 0.8s linear infinite; opacity: 1; pointer-events: auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Tab Bar ── */
+    .tab-bar {
+      display: flex; align-items: center;
+      background: var(--card); border-radius: 100px;
+      padding: 4px; margin: 16px 16px 20px; gap: 1px;
+    }
+    .tab-btn {
+      flex: 1; padding: 12px 16px; border: none;
+      background: transparent; color: var(--text-2);
+      font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600;
+      letter-spacing: 0.15px; border-radius: 100px;
+      cursor: pointer; transition: all 0.2s ease;
+      white-space: nowrap; text-align: center;
+    }
+    .tab-btn.active {
+      background: var(--tab-active); color: var(--text-1);
+      box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+    }
+
+    /* ── Tab content ── */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ══════════════════════════════════════════════════════════
+       POINTS TABLE
+       Each group is ONE full-width card (margin: 0 16px).
+       Inside: frozen col (rank+logo+name) + scroll col (stats).
+       overflow: hidden on the card clips scroll content at the
+       right rounded edge — scroll happens *within* the card.
+       Both groups sync scroll via JS.
+    ══════════════════════════════════════════════════════════ */
+
+    .points-section { padding-bottom: 4px; }
+    .group-gap      { height: 24px; }
+
+    /* ── Column-label row (outside card, but labels scroll in sync via JS) ── */
+    .group-header {
+      display: flex; align-items: center;
+      height: var(--hdr-h);
+      margin: 0 16px;           /* aligns with card's margin */
+      color: var(--text-3);
+      font-size: 14px; font-weight: 400; line-height: 1.45;
+    }
+    /* Frozen part: # + Group name — matches .fz-col width */
+    .fz-header-part {
+      width: var(--fz-col-w);
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 8px 0 12px;
+    }
+    /* Scroll part: invisible overflow container, JS sets scrollLeft to mirror card */
+    .sc-header-scroll {
+      flex: 1; min-width: 0;
+      overflow-x: auto;
+      /* hide scrollbar — user never touches this, JS drives it */
+      scrollbar-width: none;
+    }
+    .sc-header-scroll::-webkit-scrollbar { display: none; }
+    /* Inner label row — same width rules as .sc-row so columns align */
+    .sc-header-row {
+      display: flex; align-items: center;
+      gap: 16px; padding: 0 12px 0 8px;
+      height: var(--hdr-h);
+      width: max-content;
+    }
+    /* Spacer matching col-form width so header overflows the same amount as data rows */
+    .sc-header-spacer { width: 136px; flex-shrink: 0; }
+
+    /* col-stat/nrr/pts have explicit white color — override to text-3 in header context */
+    .sc-header-row .col-stat,
+    .sc-header-row .col-nrr,
+    .sc-header-row .col-pts { color: var(--text-3); }
+
+    /* ── Unified group card ── */
+    .group-card {
+      display: flex;
+      background: rgba(255, 255, 255, 0.10);
+      border-radius: 16px;
+      overflow: hidden;          /* ← clips scroll content at right edge */
+      margin: 0 16px;
+    }
+
+    /* Frozen column: rank + logo + name */
+    .fz-col {
+      width: var(--fz-col-w);
+      flex-shrink: 0;
+      /* border hidden by default; appears once user scrolls */
+      border-right: 1px solid transparent;
+      transition: border-color 0.2s ease;
+    }
+    /* Show divider only when the card has been scrolled */
+    .group-card.is-scrolled .fz-col {
+      border-right-color: rgba(255,255,255,0.07);
+    }
+
+    /* Scroll column: stats + form pills — overflows & scrolls within card */
+    .sc-col {
+      flex: 1;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      min-width: 0; /* critical: allows flex child to shrink below content size */
+    }
+    .sc-col::-webkit-scrollbar { display: none; }
+
+    /* Frozen row */
+    .fz-row {
+      height: var(--row-h);
+      display: flex; align-items: center;
+      gap: 8px; padding: 0 8px 0 12px;
+      cursor: pointer;
+    }
+    .fz-row:active { background: rgba(255,255,255,0.04); }
+
+    /* Scroll row — width: max-content makes it wider than .sc-col → triggers scroll */
+    .sc-row {
+      height: var(--row-h);
+      display: flex; align-items: center;
+      gap: 16px; padding: 0 12px 0 8px;
+      width: max-content;
+      cursor: pointer;
+    }
+    .sc-row:active { background: rgba(255,255,255,0.04); }
+
+    /* ── Column widths ── */
+    .col-rank {
+      width: 18px; flex-shrink: 0; text-align: center;
+      font-size: 14px; font-weight: 400; color: var(--text-1);
+    }
+    .col-team-logo {
+      width: 24px; height: 24px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .col-team-logo img { width: 24px; height: 24px; object-fit: contain; display: block; }
+    .col-team-name {
+      font-size: 14px; font-weight: 500; color: var(--text-1);
+      line-height: 1.45; white-space: nowrap;
+    }
+    .col-stat {
+      width: 18px; flex-shrink: 0; text-align: center;
+      font-size: 14px; font-weight: 400; color: var(--text-1); line-height: 1.45;
+    }
+    .col-nrr {
+      width: 52px; flex-shrink: 0; text-align: center;
+      font-size: 14px; font-weight: 400; color: var(--text-1); line-height: 1.45;
+    }
+    .col-pts {
+      width: 28px; flex-shrink: 0; text-align: center;
+      font-size: 14px; font-weight: 400; color: var(--text-1); line-height: 1.45;
+    }
+    .col-form {
+      width: 136px; flex-shrink: 0;
+      display: flex; align-items: center; gap: 4px;
+    }
+
+    /* Form pill */
+    .pill {
+      width: 24px; height: 24px; flex-shrink: 0;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Roboto', sans-serif; font-size: 12px; font-weight: 500; line-height: 1.35;
+    }
+    .pill-W { background: var(--w-bg); color: var(--w-text); }
+    .pill-L { background: var(--l-bg); color: var(--l-text); }
+    .pill-D { background: var(--d-bg); color: var(--d-text); }
+
+    /* Legend + Last Updated */
+    .legend {
+      display: flex; gap: 16px; flex-wrap: wrap;
+      padding: 12px 16px 4px; align-items: center;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-3); }
+    .legend-dot  { width: 8px; height: 8px; border-radius: 2px; }
+    .last-updated { padding: 4px 16px 20px; font-size: 11px; color: var(--text-3); }
+
+    /* ── Schedule ── */
+    .schedule-section { padding: 0 12px 20px; }
+    .date-header {
+      font-size: 12px; font-weight: 600; color: var(--text-3);
+      text-transform: uppercase; letter-spacing: 1px; padding: 14px 4px 8px;
+    }
+    .match-card {
+      background: var(--card); border-radius: 14px;
+      padding: 14px 16px; margin-bottom: 10px;
+      cursor: pointer; transition: transform 0.1s, opacity 0.1s;
+    }
+    .match-card:active { transform: scale(0.98); opacity: 0.9; }
+    .match-meta { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .match-num { font-size: 11px; color: var(--text-3); font-weight: 600; }
+    .match-status { font-size: 11px; font-weight: 700; padding: 3px 9px; border-radius: 6px; }
+    .status-live      { background: rgba(255,59,48,0.12);  color: #ff3b30; }
+    .status-upcoming  { background: rgba(10,132,255,0.12); color: var(--blue); }
+    .status-completed { background: rgba(76,217,100,0.12); color: #4cd964; }
+    .status-live::before { content: '● '; animation: pulse 1s ease-in-out infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .match-teams { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .match-team  { display: flex; flex-direction: column; align-items: center; gap: 6px; flex: 1; }
+    .match-team-logo {
+      width: 44px; height: 44px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      border: 2px solid rgba(255,255,255,0.12);
+    }
+    .match-team-name { font-size: 13px; font-weight: 700; }
+    .match-score     { font-size: 12px; color: var(--text-3); font-weight: 500; }
+    .vs-block  { display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .vs-text   { font-size: 13px; color: var(--text-3); font-weight: 700; }
+    .match-time  { font-size: 11px; color: var(--text-3); }
+    .match-venue { margin-top: 10px; font-size: 11px; color: var(--text-3); text-align: center; }
+
+    /* ── Skeleton ── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--card) 25%, #292524 50%, var(--card) 75%);
+      background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px;
+    }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+    .sk-circle { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; }
+    .sk-line   { height: 12px; border-radius: 4px; }
+
+    /* ── Error ── */
+    .error-state {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 12px; padding: 48px 24px; text-align: center;
+    }
+    .error-icon  { font-size: 40px; }
+    .error-title { font-size: 16px; font-weight: 600; }
+    .error-msg   { font-size: 13px; color: var(--text-3); line-height: 1.5; }
+    .retry-btn {
+      margin-top: 8px; background: var(--blue); color: #fff;
+      border: none; border-radius: 10px; padding: 10px 24px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+
+    ::-webkit-scrollbar { width: 0; }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <div class="page-header">
+    <div class="status-bar">
+      <span class="status-bar-time">9:41</span>
+      <div class="status-bar-icons">
+        <svg width="19" height="13" viewBox="0 0 19 13" fill="white"><rect x="0" y="7" width="3" height="6" rx="1"/><rect x="4" y="5" width="3" height="8" rx="1"/><rect x="8" y="3" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="12" rx="1"/><rect x="16" y="0" width="3" height="13" rx="1" opacity="0.3"/></svg>
+        <svg width="17" height="13" viewBox="0 0 17 13" fill="none"><path d="M8.5 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" fill="white"/><path d="M4.5 7.5C5.9 6.1 7.1 5.5 8.5 5.5s2.6.6 4 2" stroke="white" stroke-width="1.5" stroke-linecap="round"/><path d="M1.5 4.5C3.5 2.5 5.9 1.5 8.5 1.5s5 1 7 3" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <svg width="27" height="13" viewBox="0 0 27 13" fill="none"><rect x="0.5" y="0.5" width="23" height="12" rx="3.5" stroke="white" stroke-opacity="0.35"/><rect x="2" y="2" width="18" height="9" rx="2" fill="white"/><path d="M25 4.5v4a2 2 0 0 0 0-4z" fill="white" opacity="0.4"/></svg>
+      </div>
+    </div>
+    <div class="app-bar">
+      <button class="back-btn" onclick="App.onBackPressed()" aria-label="Back">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15 19l-7-7 7-7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="refresh-btn" id="refresh-btn" onclick="App.refresh()" title="Refresh">↻</button>
+    </div>
+  </div>
+
+  <!-- ── Tab Bar ── -->
+  <div class="tab-bar">
+    <button class="tab-btn active"  id="btn-schedule" onclick="App.switchTab('schedule')">Schedule</button>
+    <button class="tab-btn"         id="btn-points"   onclick="App.switchTab('points')">Points Table</button>
+  </div>
+
+  <!-- ── Schedule tab ── -->
+  <div class="tab-content active" id="tab-schedule">
+    <div class="schedule-section" id="schedule-list"></div>
+  </div>
+
+  <!-- ── Points Table tab ── -->
+  <div class="tab-content" id="tab-points">
+    <div class="points-section">
+
+      <!-- GROUP A -->
+      <div class="group-header">
+        <div class="fz-header-part">
+          <span class="col-rank">#</span>
+          <span>Group A</span>
+        </div>
+        <div class="sc-header-scroll" id="sc-hdr-a">
+          <div class="sc-header-row">
+            <span class="col-stat">M</span>
+            <span class="col-stat">W</span>
+            <span class="col-stat">L</span>
+            <span class="col-nrr">NRR</span>
+            <span class="col-pts">Pts</span>
+            <span class="sc-header-spacer"></span>
+          </div>
+        </div>
+      </div>
+      <div class="group-card">
+        <div class="fz-col" id="fz-a"></div>
+        <div class="sc-col" id="sc-col-a"><div id="sc-a"></div></div>
+      </div>
+
+      <div class="group-gap"></div>
+
+      <!-- GROUP B -->
+      <div class="group-header">
+        <div class="fz-header-part">
+          <span class="col-rank">#</span>
+          <span>Group B</span>
+        </div>
+        <div class="sc-header-scroll" id="sc-hdr-b">
+          <div class="sc-header-row">
+            <span class="col-stat">M</span>
+            <span class="col-stat">W</span>
+            <span class="col-stat">L</span>
+            <span class="col-nrr">NRR</span>
+            <span class="col-pts">Pts</span>
+            <span class="sc-header-spacer"></span>
+          </div>
+        </div>
+      </div>
+      <div class="group-card">
+        <div class="fz-col" id="fz-b"></div>
+        <div class="sc-col" id="sc-col-b"><div id="sc-b"></div></div>
+      </div>
+
+    </div><!-- /.points-section -->
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--w-bg);border:1px solid var(--w-text)"></div> Win</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--l-bg);border:1px solid var(--l-text)"></div> Loss</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--d-bg);border:1px solid var(--d-text)"></div> Draw</div>
+    </div>
+    <div class="last-updated" id="last-updated"></div>
+
+  </div><!-- /#tab-points -->
+
+
+<script>
+'use strict';
+
+/* ═══════════════════════════════════════════════════════════
+   1. NATIVE BRIDGE
+   ═══════════════════════════════════════════════════════════ */
+const Bridge = (() => {
+  const isRN      = !!(window.ReactNativeWebView);
+  const isAndroid = !!(window.Android);
+  const isIOS     = !!(window.webkit?.messageHandlers?.iplBridge);
+
+  function send(type, payload = {}) {
+    const msg = JSON.stringify({ type, payload, ts: Date.now() });
+    if (isRN)      { window.ReactNativeWebView.postMessage(msg); return; }
+    if (isAndroid) { window.Android.postMessage(msg); return; }
+    if (isIOS)     { window.webkit.messageHandlers.iplBridge.postMessage(msg); return; }
+    console.debug('[Bridge → Native]', type, payload);
+  }
+
+  window.IPL = {
+    onThemeChanged(theme) { document.body.className = theme === 'light' ? 'light' : ''; },
+    onDataPushed(data) {
+      if (data.schedule)    Render.schedule(data.schedule);
+      if (data.pointsTable) Render.pointsTable(data.pointsTable);
+    },
+    onBackPressed() { Bridge.send('CLOSE_WEBVIEW'); }
+  };
+
+  return { send };
+})();
+
+
+/* ═══════════════════════════════════════════════════════════
+   2. API LAYER
+   ═══════════════════════════════════════════════════════════ */
+const API = (() => {
+  const BASE = window.IPL_CONFIG?.apiBase || null;
+
+  const MOCK_POINTS = {
+    groupA: [
+      { team:'MI',  m:6, w:4, l:2, nrr:+0.812, pts:8,  form:['W','W','L','W','L','W'] },
+      { team:'CSK', m:6, w:3, l:3, nrr:+0.241, pts:6,  form:['W','L','W','L','W','L'] },
+      { team:'RCB', m:6, w:3, l:3, nrr:-0.120, pts:6,  form:['L','W','L','W','W','L'] },
+      { team:'DC',  m:6, w:2, l:4, nrr:-0.530, pts:4,  form:['L','L','W','L','W','L'] },
+      { team:'GT',  m:6, w:2, l:4, nrr:-0.810, pts:4,  form:['L','W','L','L','L','W'] },
+    ],
+    groupB: [
+      { team:'KKR', m:6, w:5, l:1, nrr:+1.102, pts:10, form:['W','W','W','L','W','W'] },
+      { team:'SRH', m:6, w:4, l:2, nrr:+0.674, pts:8,  form:['W','W','L','W','W','L'] },
+      { team:'RR',  m:6, w:3, l:3, nrr:+0.085, pts:6,  form:['W','L','W','L','W','L'] },
+      { team:'LSG', m:6, w:2, l:4, nrr:-0.342, pts:4,  form:['L','W','L','L','W','L'] },
+      { team:'PBKS',m:6, w:1, l:5, nrr:-0.991, pts:2,  form:['L','L','L','W','L','L'] },
+    ]
+  };
+
+  const MOCK_SCHEDULE = [
+    { date:'Today · Mar 17', matches:[
+      { id:'m15', num:15, t1:'MI',  t2:'GT',  time:'7:30 PM', venue:'Wankhede Stadium, Mumbai',
+        status:'live', score1:'142/3 (15.2)', score2:'—' },
+    ]},
+    { date:'Tue, Mar 18', matches:[
+      { id:'m16', num:16, t1:'KKR', t2:'RCB', time:'7:30 PM', venue:'Eden Gardens, Kolkata', status:'upcoming' },
+    ]},
+    { date:'Wed, Mar 19', matches:[
+      { id:'m17', num:17, t1:'CSK', t2:'SRH', time:'7:30 PM', venue:'MA Chidambaram Stadium', status:'upcoming' },
+    ]},
+    { date:'Thu, Mar 20', matches:[
+      { id:'m18', num:18, t1:'RR',  t2:'DC',  time:'7:30 PM', venue:'Sawai Mansingh Stadium, Jaipur', status:'upcoming' },
+    ]},
+    { date:'Sat, Mar 22', matches:[
+      { id:'m19', num:19, t1:'GT',  t2:'LSG', time:'3:30 PM', venue:'Narendra Modi Stadium, Ahmedabad', status:'upcoming' },
+      { id:'m20', num:20, t1:'PBKS',t2:'MI',  time:'7:30 PM', venue:'IS Bindra Stadium, Mohali', status:'upcoming' },
+    ]},
+    { date:'Sun, Mar 16', matches:[
+      { id:'m14', num:14, t1:'RCB', t2:'CSK', time:'7:30 PM', venue:'M.Chinnaswamy Stadium',
+        status:'completed', score1:'189/4', score2:'175/8', winner:'RCB' },
+      { id:'m13', num:13, t1:'SRH', t2:'DC',  time:'3:30 PM', venue:'Rajiv Gandhi Intl. Stadium',
+        status:'completed', score1:'214/5', score2:'196/7', winner:'SRH' },
+    ]},
+  ];
+
+  async function get(path, mockFallback) {
+    if (!BASE) { await new Promise(r => setTimeout(r, 800)); return mockFallback; }
+    const res = await fetch(`${BASE}${path}`, {
+      headers: {
+        'Accept': 'application/json',
+        ...(window.IPL_CONFIG?.authToken ? { 'Authorization': `Bearer ${window.IPL_CONFIG.authToken}` } : {}),
+      }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  return {
+    getPointsTable: () => get('/points-table', MOCK_POINTS),
+    getSchedule:    () => get('/schedule',     MOCK_SCHEDULE),
+  };
+})();
+
+
+/* ═══════════════════════════════════════════════════════════
+   3. TEAM METADATA
+   ═══════════════════════════════════════════════════════════ */
+const TEAMS = {
+  MI:   { abbr:'MI',   logo:'logos/MI.svg'   },
+  CSK:  { abbr:'CSK',  logo:'logos/CSK.svg'  },
+  RCB:  { abbr:'RCB',  logo:'logos/RCB.svg'  },
+  KKR:  { abbr:'KKR',  logo:'logos/KKR.svg'  },
+  DC:   { abbr:'DC',   logo:'logos/DC.svg'   },
+  PBKS: { abbr:'PBKS', logo:'logos/PBKS.svg' },
+  RR:   { abbr:'RR',   logo:'logos/RR.svg'   },
+  SRH:  { abbr:'SRH',  logo:'logos/SRH.svg'  },
+  GT:   { abbr:'GT',   logo:'logos/GT.svg'   },
+  LSG:  { abbr:'LSG',  logo:'logos/LSG.svg'  },
+};
+
+
+/* ═══════════════════════════════════════════════════════════
+   4. SKELETON HELPERS
+   ═══════════════════════════════════════════════════════════ */
+function skeletonFrozenRows(n) {
+  return Array.from({ length: n }, () => `
+    <div class="fz-row" style="cursor:default">
+      <div class="skeleton" style="width:18px;height:12px;border-radius:3px;flex-shrink:0"></div>
+      <div class="skeleton" style="width:24px;height:24px;border-radius:50%;flex-shrink:0"></div>
+      <div class="skeleton" style="width:36px;height:12px;border-radius:3px"></div>
+    </div>`).join('');
+}
+
+function skeletonScrollRows(n) {
+  return Array.from({ length: n }, () => `
+    <div class="sc-row" style="cursor:default">
+      <div class="skeleton" style="width:18px;height:12px;border-radius:3px;flex-shrink:0"></div>
+      <div class="skeleton" style="width:18px;height:12px;border-radius:3px;flex-shrink:0"></div>
+      <div class="skeleton" style="width:18px;height:12px;border-radius:3px;flex-shrink:0"></div>
+      <div class="skeleton" style="width:52px;height:12px;border-radius:3px;flex-shrink:0"></div>
+      <div class="skeleton" style="width:28px;height:12px;border-radius:3px;flex-shrink:0"></div>
+      <div class="skeleton" style="width:120px;height:24px;border-radius:6px;flex-shrink:0"></div>
+    </div>`).join('');
+}
+
+function skeletonCards(n) {
+  return Array.from({ length: n }, () => `
+    <div class="match-card" style="cursor:default">
+      <div style="display:flex;justify-content:space-between;margin-bottom:14px">
+        <div class="skeleton sk-line" style="width:60px"></div>
+        <div class="skeleton sk-line" style="width:70px"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px">
+          <div class="skeleton" style="width:44px;height:44px;border-radius:50%"></div>
+          <div class="skeleton sk-line" style="width:36px"></div>
+        </div>
+        <div class="skeleton sk-line" style="width:24px"></div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px">
+          <div class="skeleton" style="width:44px;height:44px;border-radius:50%"></div>
+          <div class="skeleton sk-line" style="width:36px"></div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   5. RENDER
+   ═══════════════════════════════════════════════════════════ */
+const Render = {
+  pointsTable(data) {
+    const makeFrozen = (entries) => entries.map((e, i) => {
+      const t = TEAMS[e.team];
+      return `
+        <div class="fz-row" onclick="App.onTeamTap('${e.team}')">
+          <span class="col-rank">${i + 1}</span>
+          <div class="col-team-logo"><img src="${t.logo}" alt="${t.abbr}" /></div>
+          <span class="col-team-name">${t.abbr}</span>
+        </div>`;
+    }).join('');
+
+    const makeScroll = (entries) => entries.map(e => {
+      const nrrStr = (e.nrr >= 0 ? '+' : '') + e.nrr.toFixed(3);
+      const pills  = e.form.slice(-5).map(r =>
+        `<span class="pill pill-${r}">${r}</span>`).join('');
+      return `
+        <div class="sc-row" onclick="App.onTeamTap('${e.team}')">
+          <span class="col-stat">${e.m}</span>
+          <span class="col-stat">${e.w}</span>
+          <span class="col-stat">${e.l}</span>
+          <span class="col-nrr">${nrrStr}</span>
+          <span class="col-pts">${e.pts}</span>
+          <div class="col-form">${pills}</div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('fz-a').innerHTML = makeFrozen(data.groupA);
+    document.getElementById('fz-b').innerHTML = makeFrozen(data.groupB);
+    document.getElementById('sc-a').innerHTML = makeScroll(data.groupA);
+    document.getElementById('sc-b').innerHTML = makeScroll(data.groupB);
+
+    // Timestamp
+    const el = document.getElementById('last-updated');
+    if (el) {
+      const fmt = new Date().toLocaleString('en-IN', {
+        day:'numeric', month:'short', year:'numeric',
+        hour:'2-digit', minute:'2-digit', hour12:true
+      });
+      el.textContent = `Updated ${fmt}`;
+    }
+  },
+
+  schedule(data) {
+    const container = document.getElementById('schedule-list');
+    const label = { live:'LIVE', upcoming:'Upcoming', completed:'Completed' };
+    container.innerHTML = data.map(day => {
+      const cards = day.matches.map(m => {
+        const t1 = TEAMS[m.t1], t2 = TEAMS[m.t2];
+        const t1dim = m.winner && m.winner !== m.t1;
+        const t2dim = m.winner && m.winner !== m.t2;
+        const s1 = m.score1 ? `<div class="match-score">${m.score1}</div>` : '';
+        const s2 = m.score2 ? `<div class="match-score">${m.score2}</div>` : '';
+        return `
+          <div class="match-card" onclick="App.onMatchTap('${m.id}','${m.t1}','${m.t2}')">
+            <div class="match-meta">
+              <span class="match-num">Match ${m.num}</span>
+              <span class="match-status status-${m.status}">${label[m.status]}</span>
+            </div>
+            <div class="match-teams">
+              <div class="match-team">
+                <div class="match-team-logo"><img src="${t1.logo}" alt="${t1.abbr}" style="width:44px;height:44px;object-fit:contain"/></div>
+                <span class="match-team-name" style="color:${t1dim?'var(--text-3)':'var(--text-1)'}">${t1.abbr}</span>${s1}
+              </div>
+              <div class="vs-block"><span class="vs-text">VS</span><span class="match-time">${m.time||''}</span></div>
+              <div class="match-team">
+                <div class="match-team-logo"><img src="${t2.logo}" alt="${t2.abbr}" style="width:44px;height:44px;object-fit:contain"/></div>
+                <span class="match-team-name" style="color:${t2dim?'var(--text-3)':'var(--text-1)'}">${t2.abbr}</span>${s2}
+              </div>
+            </div>
+            ${m.venue?`<div class="match-venue">📍 ${m.venue}</div>`:''}
+          </div>`;
+      }).join('');
+      return `<div class="date-header">${day.date}</div>${cards}`;
+    }).join('');
+  },
+
+  error(containerId, onRetry) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = `
+      <div class="error-state">
+        <div class="error-icon">⚠️</div>
+        <div class="error-title">Couldn't load data</div>
+        <div class="error-msg">Check your connection and try again.</div>
+        <button class="retry-btn" onclick="${onRetry}()">Try Again</button>
+      </div>`;
+  },
+
+  skeletonPoints() {
+    const fz = skeletonFrozenRows(5);
+    const sc = skeletonScrollRows(5);
+    ['fz-a','fz-b'].forEach(id => document.getElementById(id).innerHTML = fz);
+    ['sc-a','sc-b'].forEach(id => document.getElementById(id).innerHTML = sc);
+  },
+
+  skeletonSchedule() {
+    document.getElementById('schedule-list').innerHTML =
+      `<div class="schedule-section">${skeletonCards(3)}</div>`;
+  },
+};
+
+
+/* ═══════════════════════════════════════════════════════════
+   6. SCROLL SYNC
+   Both sc-col elements scroll together so Group A and Group B
+   always show the same horizontal position.
+   ═══════════════════════════════════════════════════════════ */
+function initScrollSync() {
+  const scA   = document.getElementById('sc-col-a');
+  const scB   = document.getElementById('sc-col-b');
+  const hdrA  = document.getElementById('sc-hdr-a');
+  const hdrB  = document.getElementById('sc-hdr-b');
+  const all   = [scA, scB, hdrA, hdrB];
+  if (all.some(el => !el)) return;
+
+  const cards = document.querySelectorAll('.group-card');
+  let syncing = false;
+
+  all.forEach(source => {
+    source.addEventListener('scroll', () => {
+      if (syncing) return;
+      syncing = true;
+      const x = source.scrollLeft;
+      cards.forEach(c => c.classList.toggle('is-scrolled', x > 0));
+      all.forEach(el => { if (el !== source) el.scrollLeft = x; });
+      syncing = false;
+    }, { passive: true });
+  });
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   7. APP CONTROLLER
+   ═══════════════════════════════════════════════════════════ */
+const App = {
+  currentTab: 'schedule',
+
+  async init() {
+    Render.skeletonSchedule();
+    Render.skeletonPoints();
+    initScrollSync();
+    await this._loadAll();
+    Bridge.send('PAGE_READY', { tab: this.currentTab });
+  },
+
+  async _loadAll() {
+    const btn = document.getElementById('refresh-btn');
+    btn.classList.add('spinning');
+
+    const [scheduleResult, pointsResult] = await Promise.allSettled([
+      API.getSchedule(),
+      API.getPointsTable(),
+    ]);
+
+    btn.classList.remove('spinning');
+
+    if (scheduleResult.status === 'fulfilled') Render.schedule(scheduleResult.value);
+    else {
+      Render.error('schedule-list', 'App.retrySchedule');
+      Bridge.send('DATA_ERROR', { source:'schedule', error:scheduleResult.reason?.message });
+    }
+
+    if (pointsResult.status === 'fulfilled') Render.pointsTable(pointsResult.value);
+    else {
+      Render.error('fz-a', 'App.retryPoints');
+      Bridge.send('DATA_ERROR', { source:'points', error:pointsResult.reason?.message });
+    }
+  },
+
+  async refresh() {
+    Bridge.send('REFRESH_TRIGGERED');
+    await this._loadAll();
+  },
+
+  async retrySchedule() {
+    document.getElementById('schedule-list').innerHTML = `<div class="schedule-section">${skeletonCards(3)}</div>`;
+    try { Render.schedule(await API.getSchedule()); }
+    catch { Render.error('schedule-list', 'App.retrySchedule'); }
+  },
+
+  async retryPoints() {
+    Render.skeletonPoints();
+    try { Render.pointsTable(await API.getPointsTable()); }
+    catch { Render.error('fz-a', 'App.retryPoints'); }
+  },
+
+  switchTab(tab) {
+    this.currentTab = tab;
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById(`tab-${tab}`).classList.add('active');
+    document.getElementById(`btn-${tab}`).classList.add('active');
+    Bridge.send('TAB_CHANGED', { tab });
+  },
+
+  onMatchTap(id, t1, t2) { Bridge.send('MATCH_TAPPED', { matchId:id, t1, t2 }); },
+  onTeamTap(team)         { Bridge.send('TEAM_TAPPED',  { team }); },
+  onBackPressed()         { Bridge.send('CLOSE_WEBVIEW'); },
+};
+
+App.init();
+</script>
+</body>
+</html>

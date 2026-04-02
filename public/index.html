@@ -1,0 +1,1330 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>IPL 2025</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Roboto:wght@500&display=swap" rel="stylesheet" />
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+    /* ── Figma design tokens ── */
+    :root {
+      --bg:          #000000;
+      --card:        rgba(255, 255, 255, 0.10);
+      --tab-active:  #292524;
+      --text-1:      #ffffff;
+      --text-2:      #d6d3d1;
+      --text-3:      #a6a09b;
+      --blue:        #0a84ff;
+      --border:      rgba(255,255,255,0.06);
+      /* Form pills */
+      --w-bg:        rgba(0,201,81,0.15);
+      --w-text:      #05df72;
+      --l-bg:        rgba(255,105,0,0.15);
+      --l-text:      #ff8904;
+      --d-bg:        rgba(255,255,255,0.10);
+      --d-text:      #d6d3d1;
+      /* Layout */
+      --fz-col-w:    118px;   /* frozen column width: 12+18+8+24+8+40+8 */
+      --row-h:        56px;   /* team row height     */
+      --hdr-h:        36px;   /* column-label row    */
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text-1);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* ── Page Header ── */
+    .page-header { position: sticky; top: 0; z-index: 10; background: #000; }
+
+    .status-bar { display: none; }
+
+    .app-bar {
+      height: 56px; display: flex; align-items: center;
+      justify-content: space-between; padding: 0 16px; background: #000;
+    }
+    .back-btn {
+      width: 40px; height: 40px;
+      background: rgba(255,255,255,0.10); border: none; border-radius: 30px;
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; flex-shrink: 0; transition: opacity 0.15s;
+    }
+    .back-btn:active { opacity: 0.6; }
+
+    .refresh-btn {
+      background: none; border: none; color: var(--blue);
+      font-size: 22px; cursor: pointer; padding: 4px; line-height: 1;
+      transition: opacity 0.2s; opacity: 0; pointer-events: none;
+    }
+    .refresh-btn.spinning { animation: spin 0.8s linear infinite; opacity: 1; pointer-events: auto; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Tab Bar ── */
+    .tab-bar {
+      display: flex; align-items: center;
+      background: var(--card); border-radius: 100px;
+      padding: 4px; margin: 16px 16px 20px; gap: 1px;
+    }
+    .tab-btn {
+      flex: 1; padding: 12px 16px; border: none;
+      background: transparent; color: var(--text-2);
+      font-family: 'Inter', sans-serif; font-size: 16px; font-weight: 600;
+      letter-spacing: 0.15px; border-radius: 100px;
+      cursor: pointer; transition: all 0.2s ease;
+      white-space: nowrap; text-align: center;
+    }
+    .tab-btn.active {
+      background: var(--tab-active); color: var(--text-1);
+      box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+    }
+
+    /* ── Tab content ── */
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+
+    /* ══════════════════════════════════════════════════════════
+       POINTS TABLE
+       Each group is ONE full-width card (margin: 0 16px).
+       Inside: frozen col (rank+logo+name) + scroll col (stats).
+       overflow: hidden on the card clips scroll content at the
+       right rounded edge — scroll happens *within* the card.
+       Both groups sync scroll via JS.
+    ══════════════════════════════════════════════════════════ */
+
+    .points-section { padding-bottom: 4px; }
+    .group-gap      { height: 24px; }
+
+    /* ── Column-label row (outside card, but labels scroll in sync via JS) ── */
+    .group-header {
+      display: flex; align-items: center;
+      height: var(--hdr-h);
+      margin: 0 16px;           /* aligns with card's margin */
+      color: var(--text-3);
+      font-size: 14px; font-weight: 400; line-height: 1.45;
+    }
+    /* Frozen part: # + Group name — matches .fz-col width */
+    .fz-header-part {
+      width: var(--fz-col-w);
+      flex-shrink: 0;
+      display: flex; align-items: center; gap: 8px;
+      padding: 0 8px 0 12px;
+    }
+    /* Scroll part: invisible overflow container, JS sets scrollLeft to mirror card */
+    .sc-header-scroll {
+      flex: 1; min-width: 0;
+      overflow-x: auto;
+      /* hide scrollbar — user never touches this, JS drives it */
+      scrollbar-width: none;
+    }
+    .sc-header-scroll::-webkit-scrollbar { display: none; }
+    /* Inner label row — same width rules as .sc-row so columns align */
+    .sc-header-row {
+      display: flex; align-items: center;
+      gap: 16px; padding: 0 12px 0 8px;
+      height: var(--hdr-h);
+      width: max-content;
+    }
+    /* Spacer matching col-form width so header overflows the same amount as data rows */
+    .sc-header-spacer { width: 136px; flex-shrink: 0; }
+
+    /* col-stat/nrr/pts have explicit white color — override to text-3 in header context */
+    .sc-header-row .col-stat,
+    .sc-header-row .col-nrr,
+    .sc-header-row .col-pts { color: var(--text-3); }
+
+    /* ── Unified group card ── */
+    .group-card {
+      display: flex;
+      background: rgba(255, 255, 255, 0.10);
+      border-radius: 16px;
+      clip-path: inset(0 round 16px);
+      -webkit-clip-path: inset(0 round 16px);
+      margin: 0 16px;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+    }
+
+    /* Frozen column: rank + logo + name */
+    .fz-col {
+      width: var(--fz-col-w);
+      flex-shrink: 0;
+      padding: 8px 0;
+      /* border hidden by default; appears once user scrolls */
+      border-right: 1px solid transparent;
+      transition: border-color 0.2s ease;
+    }
+    /* Show divider only when the card has been scrolled */
+    .group-card.is-scrolled .fz-col {
+      border-right-color: rgba(255,255,255,0.07);
+    }
+
+    /* Scroll column: stats + form pills — overflows & scrolls within card */
+    .sc-col {
+      flex: 1;
+      overflow-x: auto;
+      -webkit-overflow-scrolling: touch;
+      min-width: 0; /* critical: allows flex child to shrink below content size */
+      padding: 8px 0;
+      will-change: transform;
+      transform: translateZ(0);
+      -webkit-transform: translateZ(0);
+      -webkit-backface-visibility: hidden;
+      backface-visibility: hidden;
+    }
+    .sc-col::-webkit-scrollbar { display: none; }
+
+    /* Frozen row */
+    .fz-row {
+      height: var(--row-h);
+      display: flex; align-items: center;
+      gap: 8px; padding: 0 8px 0 12px;
+      cursor: pointer;
+    }
+    .fz-row:active { background: rgba(255,255,255,0.04); }
+
+    /* Scroll row — width: max-content makes it wider than .sc-col → triggers scroll */
+    .sc-row {
+      height: var(--row-h);
+      display: flex; align-items: center;
+      gap: 16px; padding: 0 12px 0 8px;
+      width: max-content;
+      cursor: pointer;
+    }
+    .sc-row:active { background: rgba(255,255,255,0.04); }
+
+    /* ── Column widths ── */
+    .col-rank {
+      width: 18px; flex-shrink: 0; text-align: center;
+      font-size: 14px; font-weight: 400; color: var(--text-1);
+    }
+    .col-team-logo {
+      width: 24px; height: 24px; flex-shrink: 0;
+      display: flex; align-items: center; justify-content: center; overflow: hidden;
+    }
+    .col-team-logo img { width: 24px; height: 24px; object-fit: contain; display: block; }
+    .col-team-name {
+      font-size: 14px; font-weight: 500; color: var(--text-1);
+      line-height: 1.45; white-space: nowrap;
+    }
+    .col-stat {
+      width: 18px; flex-shrink: 0; text-align: center;
+      font-size: 14px; font-weight: 400; color: var(--text-1); line-height: 1.45;
+    }
+    .col-nrr {
+      width: 52px; flex-shrink: 0; text-align: center;
+      font-size: 14px; font-weight: 400; color: var(--text-1); line-height: 1.45;
+    }
+    .col-pts {
+      width: 28px; flex-shrink: 0; text-align: center;
+      font-size: 14px; font-weight: 400; color: var(--text-1); line-height: 1.45;
+    }
+    .col-form {
+      width: 136px; flex-shrink: 0;
+      display: flex; align-items: center; gap: 4px;
+    }
+
+    /* Form pill */
+    .pill {
+      width: 24px; height: 24px; flex-shrink: 0;
+      border-radius: 6px;
+      display: flex; align-items: center; justify-content: center;
+      font-family: 'Roboto', sans-serif; font-size: 12px; font-weight: 500; line-height: 1.35;
+    }
+    .pill-W { background: var(--w-bg); color: var(--w-text); }
+    .pill-L { background: var(--l-bg); color: var(--l-text); }
+    .pill-D { background: var(--d-bg); color: var(--d-text); }
+
+    /* Legend + Last Updated */
+    .legend {
+      display: flex; gap: 16px;
+      padding: 12px 16px 20px; align-items: center;
+    }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-3); }
+    .legend-dot  { width: 8px; height: 8px; border-radius: 2px; }
+    .last-updated { margin-left: auto; font-size: 11px; color: var(--text-3); white-space: nowrap; }
+
+    /* ── New Schedule Card ── */
+    #schedule-list { padding: 12px 16px; display: flex; flex-direction: column; gap: 16px; }
+    .match-card {
+      display: flex; flex-direction: column; gap: 12px;
+      padding: 16px; border-radius: 16px;
+      cursor: pointer; transition: transform 0.1s, opacity 0.1s;
+      position: relative; align-self: stretch;
+    }
+    .match-card:active { transform: scale(0.98); opacity: 0.9; }
+    .mc-top {
+      display: flex; align-items: center; justify-content: space-between; gap: 16px;
+    }
+    .mc-team {
+      display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 0 16px;
+    }
+    .mc-logo { width: 44px; height: 44px; object-fit: contain; }
+    .mc-abbr {
+      font-size: 16px; font-weight: 500; color: #fafaf9; line-height: 1.25;
+    }
+    .mc-date-block {
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+    }
+    .mc-date-top  { font-size: 12px; font-weight: 500; color: #d6d3d1; }
+    .mc-date-time { font-size: 12px; font-weight: 500; color: #a6a09b; }
+    .mc-divider { height: 1px; background: rgba(255,255,255,0.06); width: 100%; }
+    .mc-venue {
+      display: flex; align-items: center; gap: 8px; justify-content: center; padding: 0 16px;
+    }
+    .mc-venue-icon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .mc-venue-text {
+      font-size: 14px; font-weight: 400; color: #d6d3d1; line-height: 1.45;
+      white-space: nowrap; overflow: hidden;
+    }
+    .mc-venue-text.truncate-fade {
+      mask-image: linear-gradient(to right, black 0%, black 85%, transparent 100%);
+      -webkit-mask-image: linear-gradient(to right, black 0%, black 85%, transparent 100%);
+    }
+    .mc-live {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(255,32,86,0.15); color: #ff3b30;
+      font-size: 12px; font-weight: 700;
+      padding: 4px 10px; border-radius: 100px;
+    }
+    .mc-live-dot {
+      width: 6px; height: 6px; border-radius: 50%;
+      background: #ff3b30;
+      animation: pulse 1.2s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: 0.4; transform: scale(0.75); }
+    }
+
+    /* ── Skeleton ── */
+    .skeleton {
+      background: linear-gradient(90deg, var(--card) 25%, #292524 50%, var(--card) 75%);
+      background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 6px;
+    }
+    @keyframes shimmer { to { background-position: -200% 0; } }
+    .sk-circle { width: 32px; height: 32px; border-radius: 50%; flex-shrink: 0; }
+    .sk-line   { height: 12px; border-radius: 4px; }
+
+    /* ── Empty State ── */
+    .empty-state-container {
+      display: flex;
+      flex-direction: column;
+      gap: 32px;
+      align-items: center;
+      justify-content: center;
+      padding: 80px 32px;
+      min-height: 520px;
+      width: 100%;
+    }
+    .empty-state-icon {
+      width: 100px;
+      height: 100px;
+      animation: fadeInEmptyState 0.6s ease-out 0ms forwards;
+      opacity: 0;
+      flex-shrink: 0;
+    }
+    .empty-state-text {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      align-items: center;
+      text-align: center;
+    }
+    .empty-state-title {
+      font-size: 20px;
+      font-weight: 700;
+      color: #fafaf9;
+      margin: 0;
+      line-height: 1.3;
+      letter-spacing: 0.25px;
+      animation: fadeInEmptyState 0.6s ease-out 150ms forwards;
+      opacity: 0;
+    }
+    .empty-state-subtitle {
+      font-size: 15px;
+      font-weight: 400;
+      color: #d6d3d1;
+      margin: 0;
+      line-height: 1.5;
+      max-width: 280px;
+      animation: fadeInEmptyState 0.6s ease-out 300ms forwards;
+      opacity: 0;
+    }
+    @keyframes fadeInEmptyState {
+      from {
+        opacity: 0;
+        transform: translateY(8px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    /* ── Error ── */
+    .error-state {
+      display: flex; flex-direction: column; align-items: center;
+      gap: 12px; padding: 48px 24px; text-align: center;
+    }
+    .error-icon  { font-size: 40px; }
+    .error-title { font-size: 16px; font-weight: 600; }
+    .error-msg   { font-size: 13px; color: var(--text-3); line-height: 1.5; }
+    .retry-btn {
+      margin-top: 8px; background: var(--blue); color: #fff;
+      border: none; border-radius: 10px; padding: 10px 24px;
+      font-size: 14px; font-weight: 600; cursor: pointer;
+    }
+
+    ::-webkit-scrollbar { width: 0; }
+
+    /* ── Team Filter Badge ── */
+    .team-filter-badge {
+      display: flex; align-items: center; gap: 6px;
+      background: rgba(10, 132, 255, 0.10); border-radius: 100px;
+      padding: 4px 10px; font-size: 13px; color: var(--text-2);
+      margin-left: auto; flex-shrink: 0;
+    }
+
+    /* ── Highlighted Row in Points Table ── */
+    .fz-row.row-selected {
+      background: var(--row-selected-bg);
+      border-left: 3px solid var(--row-selected-color);
+      padding-left: 9px;
+      margin-right: -1px;
+    }
+    .sc-row.row-selected {
+      background: var(--row-selected-bg);
+    }
+
+    /* ── Floating Control Panel ── */
+    .control-panel-toggle {
+      position: fixed; bottom: 24px; right: 24px;
+      width: 48px; height: 48px;
+      background: var(--blue); color: white;
+      border: none; border-radius: 100px;
+      cursor: pointer; z-index: 99;
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 4px 16px rgba(10, 132, 255, 0.4);
+      transition: all 0.3s ease;
+    }
+    .control-panel-toggle:hover {
+      transform: scale(1.1);
+      box-shadow: 0 6px 24px rgba(10, 132, 255, 0.6);
+    }
+
+    .control-panel {
+      position: fixed; bottom: 24px; right: 24px;
+      background: rgba(28, 28, 30, 0.95); backdrop-filter: blur(10px);
+      border-radius: 20px; border: 1px solid rgba(255, 255, 255, 0.08);
+      padding: 20px; width: 280px; max-height: 70vh;
+      overflow-y: auto; z-index: 100;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+      animation: slideUp 0.3s ease;
+    }
+    @keyframes slideUp {
+      from { transform: translateY(20px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+
+    .control-panel-header {
+      display: flex; justify-content: space-between;
+      align-items: center; margin-bottom: 20px;
+      border-bottom: none; padding-bottom: 0;
+    }
+    .control-panel-header h3 {
+      margin: 0; font-size: 16px; font-weight: 700;
+      color: #ffffff;
+    }
+    .control-panel-close {
+      background: rgba(255, 255, 255, 0.1); border: none; color: #ffffff;
+      cursor: pointer; font-size: 18px; padding: 6px 8px;
+      border-radius: 8px; transition: all 0.2s;
+    }
+    .control-panel-close:hover { background: rgba(255, 255, 255, 0.15); }
+
+    .control-panel-section {
+      margin-bottom: 20px;
+    }
+    .control-panel-section h4 {
+      margin: 0 0 12px; font-size: 11px; font-weight: 700;
+      color: rgba(255, 255, 255, 0.5); text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .control-season-toggle {
+      display: flex; gap: 0;
+      background: rgba(255, 255, 255, 0.08); padding: 0;
+      border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .control-season-btn {
+      flex: 1; padding: 10px 12px;
+      background: transparent; border: none;
+      color: rgba(255, 255, 255, 0.6); font-size: 13px; font-weight: 600;
+      border-radius: 0; cursor: pointer;
+      transition: all 0.2s;
+    }
+    .control-season-btn:first-child {
+      border-right: 1px solid rgba(255, 255, 255, 0.1);
+    }
+    .control-season-btn.active {
+      background: rgba(10, 132, 255, 0.8); color: white;
+    }
+
+    .control-team-grid {
+      display: grid; grid-template-columns: repeat(5, 1fr);
+      gap: 8px; margin-bottom: 12px;
+    }
+    .control-team-btn {
+      width: 44px; height: 44px;
+      background: rgba(255, 255, 255, 0.08); border: 2px solid transparent;
+      border-radius: 12px; padding: 4px;
+      cursor: pointer; display: flex;
+      align-items: center; justify-content: center;
+      transition: all 0.25s;
+    }
+    .control-team-btn:hover {
+      background: rgba(255, 255, 255, 0.12);
+      transform: scale(0.95);
+    }
+    .control-team-btn.active {
+      background: rgba(10, 132, 255, 0.9); border-color: transparent;
+      box-shadow: 0 4px 12px rgba(10, 132, 255, 0.4);
+    }
+    .control-team-btn img {
+      width: 28px; height: 28px;
+      object-fit: contain;
+    }
+
+    .control-clear-team {
+      width: 100%; padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.08); border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 10px; color: #ffffff;
+      font-size: 13px; font-weight: 600;
+      cursor: pointer; transition: all 0.2s;
+    }
+    .control-clear-team:hover {
+      background: rgba(255, 255, 255, 0.12);
+      border-color: rgba(255, 255, 255, 0.15);
+    }
+
+    @media (max-width: 480px) {
+      .control-panel {
+        width: calc(100vw - 48px);
+        max-height: 60vh;
+      }
+      .control-team-grid {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ── Header ── -->
+  <div class="page-header">
+    <div class="status-bar">
+      <span class="status-bar-time">9:41</span>
+      <div class="status-bar-icons">
+        <svg width="19" height="13" viewBox="0 0 19 13" fill="white"><rect x="0" y="7" width="3" height="6" rx="1"/><rect x="4" y="5" width="3" height="8" rx="1"/><rect x="8" y="3" width="3" height="10" rx="1"/><rect x="12" y="1" width="3" height="12" rx="1"/><rect x="16" y="0" width="3" height="13" rx="1" opacity="0.3"/></svg>
+        <svg width="17" height="13" viewBox="0 0 17 13" fill="none"><path d="M8.5 10.5a1.5 1.5 0 1 1 0 3 1.5 1.5 0 0 1 0-3z" fill="white"/><path d="M4.5 7.5C5.9 6.1 7.1 5.5 8.5 5.5s2.6.6 4 2" stroke="white" stroke-width="1.5" stroke-linecap="round"/><path d="M1.5 4.5C3.5 2.5 5.9 1.5 8.5 1.5s5 1 7 3" stroke="white" stroke-width="1.5" stroke-linecap="round"/></svg>
+        <svg width="27" height="13" viewBox="0 0 27 13" fill="none"><rect x="0.5" y="0.5" width="23" height="12" rx="3.5" stroke="white" stroke-opacity="0.35"/><rect x="2" y="2" width="18" height="9" rx="2" fill="white"/><path d="M25 4.5v4a2 2 0 0 0 0-4z" fill="white" opacity="0.4"/></svg>
+      </div>
+    </div>
+    <div class="app-bar">
+      <button class="back-btn" onclick="App.onBackPressed()" aria-label="Back">
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M15 19l-7-7 7-7" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="refresh-btn" id="refresh-btn" onclick="App.refresh()" title="Refresh">↻</button>
+      <div class="team-filter-badge" id="team-filter-badge" style="display: none;">
+        <img id="badge-logo" src="" alt="" style="width: 20px; height: 20px;">
+        <span id="badge-text"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Tab Bar ── -->
+  <div class="tab-bar">
+    <button class="tab-btn active"  id="btn-schedule" onclick="App.switchTab('schedule')">Schedule</button>
+    <button class="tab-btn"         id="btn-points"   onclick="App.switchTab('points')">Points Table</button>
+  </div>
+
+  <!-- ── Schedule tab ── -->
+  <div class="tab-content active" id="tab-schedule">
+    <div id="schedule-list"></div>
+  </div>
+
+  <!-- ── Points Table tab ── -->
+  <div class="tab-content" id="tab-points">
+    <div class="points-section">
+
+      <!-- ALL TEAMS -->
+      <div class="group-header">
+        <div class="fz-header-part">
+          <span class="col-rank">#</span>
+          <span>Team</span>
+        </div>
+        <div class="sc-header-scroll" id="sc-hdr-a">
+          <div class="sc-header-row">
+            <span class="col-stat">M</span>
+            <span class="col-stat">W</span>
+            <span class="col-stat">L</span>
+            <span class="col-nrr">NRR</span>
+            <span class="col-pts">Pts</span>
+            <span class="sc-header-spacer"></span>
+          </div>
+        </div>
+      </div>
+      <div class="group-card">
+        <div class="fz-col" id="fz-a"></div>
+        <div class="sc-col" id="sc-col-a"><div id="sc-a"></div></div>
+      </div>
+
+    </div><!-- /.points-section -->
+
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--w-bg);border:1px solid var(--w-text)"></div> Win</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--l-bg);border:1px solid var(--l-text)"></div> Loss</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--d-bg);border:1px solid var(--d-text)"></div> Draw</div>
+      <div class="last-updated" id="last-updated"></div>
+    </div>
+
+    <!-- 2026 error state — shown when the API call itself fails -->
+    <div id="pt-error-state" style="display:none;">
+      <div class="empty-state-container">
+        <div class="empty-state-icon">
+          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+            <polygon points="50,18 88,82 12,82" fill="none" stroke="#a6a09b" stroke-width="1.5" stroke-linejoin="round" opacity="0.6"/>
+            <line x1="50" y1="42" x2="50" y2="62" stroke="#a6a09b" stroke-width="2.5" stroke-linecap="round" opacity="0.7"/>
+            <circle cx="50" cy="72" r="2.5" fill="#a6a09b" opacity="0.7"/>
+          </svg>
+        </div>
+        <div class="empty-state-text">
+          <h2 class="empty-state-title">Oops, something went wrong</h2>
+          <p class="empty-state-subtitle">We couldn't load the points table. Check your connection and try again.</p>
+        </div>
+        <button class="retry-btn" onclick="App.retryPoints()">Try Again</button>
+      </div>
+    </div>
+
+    <!-- 2026 empty state — shown only when currentSeason === '2026' -->
+    <div id="pt-empty-state" style="display:none;">
+      <div class="empty-state-container">
+        <div class="empty-state-icon">
+          <svg viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" width="100" height="100">
+            <rect x="20" y="28" width="60" height="50" rx="6" ry="6" fill="none" stroke="#a6a09b" stroke-width="1.5" opacity="0.6"/>
+            <line x1="20" y1="42" x2="80" y2="42" stroke="#a6a09b" stroke-width="1.5" opacity="0.6"/>
+            <line x1="40" y1="28" x2="40" y2="78" stroke="#a6a09b" stroke-width="1" opacity="0.3"/>
+            <line x1="60" y1="28" x2="60" y2="78" stroke="#a6a09b" stroke-width="1" opacity="0.3"/>
+            <line x1="20" y1="54" x2="80" y2="54" stroke="#a6a09b" stroke-width="1" opacity="0.3"/>
+            <line x1="20" y1="66" x2="80" y2="66" stroke="#a6a09b" stroke-width="1" opacity="0.3"/>
+            <circle cx="50" cy="48" r="3" fill="#a6a09b" opacity="0.6"/>
+          </svg>
+        </div>
+        <div class="empty-state-text">
+          <h2 class="empty-state-title">The 2026 season is coming</h2>
+          <p class="empty-state-subtitle">The points table will update with real-time match results once the first game kicks off.</p>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#tab-points -->
+
+
+<script>
+'use strict';
+
+let currentSeason = '2026'; // '2026' = live API
+
+/* ═══════════════════════════════════════════════════════════
+   1. NATIVE BRIDGE
+   ═══════════════════════════════════════════════════════════ */
+const Bridge = (() => {
+  const isRN      = !!(window.ReactNativeWebView);
+  const isAndroid = !!(window.Android);
+  const isIOS     = !!(window.webkit?.messageHandlers?.iplBridge);
+
+  function send(type, payload = {}) {
+    const msg = JSON.stringify({ type, payload, ts: Date.now() });
+    if (isRN)      { window.ReactNativeWebView.postMessage(msg); return; }
+    if (isAndroid) { window.Android.postMessage(msg); return; }
+    if (isIOS)     { window.webkit.messageHandlers.iplBridge.postMessage(msg); return; }
+    console.debug('[Bridge → Native]', type, payload);
+  }
+
+  window.IPL = {
+    onThemeChanged(theme) { document.body.className = theme === 'light' ? 'light' : ''; },
+    onDataPushed(data) {
+      if (data.schedule)    Render.schedule(data.schedule);
+      if (data.pointsTable) Render.pointsTable(data.pointsTable);
+    },
+    onBackPressed() { Bridge.send('CLOSE_WEBVIEW'); }
+  };
+
+  return { send };
+})();
+
+
+/* ═══════════════════════════════════════════════════════════
+   2. API LAYER
+   ═══════════════════════════════════════════════════════════ */
+const API = (() => {
+  // In Dream11 app: native injects window.IPL_CONFIG.apiBase before page loads
+  // On Vercel: use /api (same origin, no CORS issues)
+  // On localhost: use Vercel API (cross-origin but works)
+  const isLocalhost = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+  const BASE = window.IPL_CONFIG?.apiBase ?? (isLocalhost ? 'https://ipl-dream11.vercel.app/api' : '/api');
+
+
+  async function get(path) {
+    const url = `${BASE}${path}?season=${currentSeason}`;
+    const res = await fetch(url, {
+      headers: {
+        'Accept': 'application/json',
+        ...(window.IPL_CONFIG?.authToken ? { 'Authorization': `Bearer ${window.IPL_CONFIG.authToken}` } : {}),
+      }
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    return res.json();
+  }
+
+  // Mock data fallback for when API fails
+  const MOCK_SCHEDULE_2025 = [
+    {
+      date: 'Today · Mar 18',
+      dateISO: '2025-03-18',
+      matches: [
+        { id: 'm1', t1: 'MI', t2: 'CSK', time: '07:30 PM', status: 'upcoming', venue: 'Wankhede, Mumbai' },
+        { id: 'm2', t1: 'RCB', t2: 'KKR', time: '07:30 PM', status: 'upcoming', venue: 'M.Chinnaswamy, Bangalore' }
+      ]
+    },
+    {
+      date: 'Tomorrow · Mar 19',
+      dateISO: '2025-03-19',
+      matches: [
+        { id: 'm3', t1: 'DC', t2: 'RR', time: '07:30 PM', status: 'upcoming', venue: 'Arun Jaitley, Delhi' }
+      ]
+    },
+    {
+      date: 'Thu, Mar 20',
+      dateISO: '2025-03-20',
+      matches: [
+        { id: 'm4', t1: 'GT', t2: 'SRH', time: '07:30 PM', status: 'upcoming', venue: 'Narendra Modi, Ahmedabad' },
+        { id: 'm5', t1: 'LSG', t2: 'PBKS', time: '07:30 PM', status: 'upcoming', venue: 'BRSABVE, Lucknow' }
+      ]
+    }
+  ];
+
+  // Actual 2025 IPL final league standings (season ended May 27, 2025)
+  const MOCK_POINTS_TABLE_2025 = {
+    teams: [
+      { team: 'PBKS', m: 14, w: 9, l: 4,  nrr:  0.372, pts: 19, form: ['W', 'W', 'W', 'D', 'W'] },
+      { team: 'RCB',  m: 14, w: 9, l: 4,  nrr:  0.301, pts: 19, form: ['W', 'W', 'L', 'W', 'D'] },
+      { team: 'GT',   m: 14, w: 9, l: 5,  nrr:  0.254, pts: 18, form: ['W', 'W', 'L', 'W', 'W'] },
+      { team: 'MI',   m: 14, w: 8, l: 6,  nrr:  1.142, pts: 16, form: ['W', 'L', 'W', 'W', 'L'] },
+      { team: 'DC',   m: 14, w: 7, l: 6,  nrr:  0.011, pts: 15, form: ['W', 'L', 'D', 'W', 'L'] },
+      { team: 'SRH',  m: 14, w: 6, l: 7,  nrr: -0.241, pts: 13, form: ['L', 'W', 'L', 'D', 'L'] },
+      { team: 'LSG',  m: 14, w: 6, l: 8,  nrr: -0.376, pts: 12, form: ['L', 'L', 'W', 'L', 'W'] },
+      { team: 'KKR',  m: 14, w: 5, l: 7,  nrr: -0.305, pts: 12, form: ['W', 'L', 'D', 'L', 'D'] },
+      { team: 'RR',   m: 14, w: 4, l: 10, nrr: -0.456, pts:  8, form: ['L', 'L', 'L', 'W', 'L'] },
+      { team: 'CSK',  m: 14, w: 4, l: 10, nrr: -0.567, pts:  8, form: ['L', 'L', 'W', 'L', 'L'] }
+    ]
+  };
+
+  return {
+    getPointsTable: () => {
+      // 2025 is a completed season — always use the authoritative local data,
+      // never trust the production API which may have stale/incorrect values.
+      if (currentSeason === '2025') return Promise.resolve(MOCK_POINTS_TABLE_2025);
+      // 2026 live — call multi-source endpoint which tries CricketData.org, Roanuz, IPL API, then fallback
+      return get('/multi-source-stats').catch(() => ({ teams: [] }));
+    },
+    getSchedule:    () => get('/schedule').catch(() => MOCK_SCHEDULE_2025),
+  };
+})();
+
+
+/* ═══════════════════════════════════════════════════════════
+   3. TEAM METADATA
+   ═══════════════════════════════════════════════════════════ */
+const TEAMS = {
+  MI:   { abbr:'MI',   logo:'/logos/MI.svg'   },
+  CSK:  { abbr:'CSK',  logo:'/logos/CSK.svg'  },
+  RCB:  { abbr:'RCB',  logo:'/logos/RCB.svg'  },
+  KKR:  { abbr:'KKR',  logo:'/logos/KKR.svg'  },
+  DC:   { abbr:'DC',   logo:'/logos/DC.svg'   },
+  PBKS: { abbr:'PBKS', logo:'/logos/PBKS.svg' },
+  RR:   { abbr:'RR',   logo:'/logos/RR.svg'   },
+  SRH:  { abbr:'SRH',  logo:'/logos/SRH.svg'  },
+  GT:   { abbr:'GT',   logo:'/logos/GT.svg'   },
+  LSG:  { abbr:'LSG',  logo:'/logos/LSG.svg'  },
+};
+
+
+/* ═══════════════════════════════════════════════════════════
+   3b. TEAM COLORS & CARD STYLE HELPERS
+   ═══════════════════════════════════════════════════════════ */
+const TEAM_COLORS = {
+  MI:   '#0055FF',
+  KKR:  '#8000FF',
+  RR:   '#FF0073',
+  RCB:  '#FF0000',
+  GT:   '#004DFF',
+  LSG:  '#FF0022',
+  SRH:  '#FF5500',
+  CSK:  '#FBFF00',
+  PBKS: '#FF0000',
+  DC:   '#0900FF',
+};
+
+function matchCardStyle(t1Key, t2Key) {
+  const hex1 = TEAM_COLORS[t1Key] || '#ffffff';
+  const hex2 = TEAM_COLORS[t2Key] || '#ffffff';
+  const toRgb = h => [parseInt(h.slice(1,3),16), parseInt(h.slice(3,5),16), parseInt(h.slice(5,7),16)].join(',');
+  const r1 = toRgb(hex1), r2 = toRgb(hex2);
+  // 6 layers:
+  //   1-2: radial colour glows (padding-box)
+  //   3:   dark fill #1C1917 (padding-box)
+  //   4:   left-team border gradient  — top-left corner → bottom-center (116°), 24%→0% (border-box)
+  //   5:   right-team border gradient — top-right corner → bottom-center (244°), 24%→0% (border-box)
+  //   6:   white base at 6% opacity (border-box)
+  return `
+    background-image:
+      radial-gradient(circle 140px at 86.32% 26.47%, rgba(${r2},0.16) 0%, rgba(${r2},0.06) 40%, rgba(${r2},0) 70%),
+      radial-gradient(circle 140px at 13.68% 26.47%, rgba(${r1},0.16) 0%, rgba(${r1},0.06) 40%, rgba(${r1},0) 70%),
+      linear-gradient(rgba(255, 255, 255, 0.10), rgba(255, 255, 255, 0.10));
+    background-origin: padding-box, padding-box, padding-box;
+    background-clip:   padding-box, padding-box, padding-box;
+    background-size: 100% 100%;
+    background-repeat: no-repeat;
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  `;
+}
+
+function matchDateLabel(dateStr) {
+  if (!dateStr) return '';
+  const today = new Date(); today.setHours(0,0,0,0);
+  const d = new Date(dateStr); d.setHours(0,0,0,0);
+  const diff = Math.round((d - today) / 86400000);
+  if (diff === 0) return 'Today';
+  if (diff === 1) return 'Tomorrow';
+  if (diff === -1) return 'Yesterday';
+  return d.toLocaleDateString('en-IN', { day:'numeric', month:'short' });
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   4. SKELETON HELPERS
+   ═══════════════════════════════════════════════════════════ */
+function skeletonFrozenRows(n) {
+  return Array.from({ length: n }, () => `
+    <div class="fz-row" style="cursor:default">
+      <div class="skeleton" style="width:18px;height:12px;border-radius:3px;flex-shrink:0"></div>
+      <div class="skeleton" style="width:24px;height:24px;border-radius:50%;flex-shrink:0"></div>
+      <div class="skeleton" style="width:36px;height:12px;border-radius:3px"></div>
+    </div>`).join('');
+}
+
+function skeletonScrollRows(n) {
+  return Array.from({ length: n }, () => `
+    <div class="sc-row" style="cursor:default">
+      <div class="skeleton" style="width:18px;height:12px;border-radius:3px;flex-shrink:0"></div>
+      <div class="skeleton" style="width:18px;height:12px;border-radius:3px;flex-shrink:0"></div>
+      <div class="skeleton" style="width:18px;height:12px;border-radius:3px;flex-shrink:0"></div>
+      <div class="skeleton" style="width:52px;height:12px;border-radius:3px;flex-shrink:0"></div>
+      <div class="skeleton" style="width:28px;height:12px;border-radius:3px;flex-shrink:0"></div>
+      <div class="skeleton" style="width:120px;height:24px;border-radius:6px;flex-shrink:0"></div>
+    </div>`).join('');
+}
+
+function skeletonCards(n) {
+  return Array.from({ length: n }, () => `
+    <div class="match-card" style="cursor:default">
+      <div style="display:flex;justify-content:space-between;margin-bottom:14px">
+        <div class="skeleton sk-line" style="width:60px"></div>
+        <div class="skeleton sk-line" style="width:70px"></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px">
+          <div class="skeleton" style="width:44px;height:44px;border-radius:50%"></div>
+          <div class="skeleton sk-line" style="width:36px"></div>
+        </div>
+        <div class="skeleton sk-line" style="width:24px"></div>
+        <div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:8px">
+          <div class="skeleton" style="width:44px;height:44px;border-radius:50%"></div>
+          <div class="skeleton sk-line" style="width:36px"></div>
+        </div>
+      </div>
+    </div>`).join('');
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   5. RENDER
+   ═══════════════════════════════════════════════════════════ */
+const ALL_TEAMS = ['PBKS','RCB','GT','MI','DC','SRH','LSG','KKR','RR','CSK'];
+
+function fillEmptyTeams(entries) {
+  if (entries && entries.length > 0) return entries;
+  return ALL_TEAMS.map(team => ({ team, m:0, w:0, l:0, nrr:0, pts:0, form:[] }));
+}
+
+const Render = {
+  pointsTable(data) {
+    // Accept { teams } (new) or legacy { groupA, groupB } — combine & sort if legacy
+    let teams;
+    if (Array.isArray(data.teams)) {
+      teams = data.teams;
+    } else {
+      const combined = [...(data.groupA||[]), ...(data.groupB||[])];
+      teams = combined.sort((a, b) => b.pts - a.pts || b.nrr - a.nrr);
+    }
+    teams = fillEmptyTeams(teams);
+
+    // Toggle between error state, empty state (2026), and table (2025)
+    const errorState  = document.getElementById('pt-error-state');
+    const emptyState  = document.getElementById('pt-empty-state');
+    const pointsSection = document.querySelector('.points-section');
+    const legend = document.querySelector('.legend');
+    const groupHeader = document.querySelector('.group-header');
+
+    // Always hide error state when rendering normally
+    if (errorState) errorState.style.display = 'none';
+
+    // Show empty state only if no teams data
+    if (!teams || teams.length === 0) {
+      if (emptyState) emptyState.style.display = 'block';
+      if (pointsSection) pointsSection.style.display = 'none';
+      if (legend) legend.style.display = 'none';
+      if (groupHeader) groupHeader.style.display = 'none';
+      return;
+    }
+
+    // Restore table elements when we have data
+    if (emptyState) emptyState.style.display = 'none';
+    if (pointsSection) pointsSection.style.display = '';
+    if (legend) legend.style.display = '';
+    if (groupHeader) groupHeader.style.display = '';
+
+    const makeFrozen = (entries) => entries.map((e, i) => {
+      const t = TEAMS[e.team] || { abbr: (e.team||'?').slice(0,4), logo: '' };
+      const isSelected = e.team === App.selectedTeam;
+      const rowClass = isSelected ? 'fz-row row-selected' : 'fz-row';
+      const teamColor = TEAM_COLORS[e.team] || '#0a84ff';
+      const colorBg = `rgba(${parseInt(teamColor.slice(1,3),16)},${parseInt(teamColor.slice(3,5),16)},${parseInt(teamColor.slice(5,7),16)},0.1)`;
+      const style = isSelected ? `style="background:${colorBg};border-left:3px solid ${teamColor};padding-left:9px"` : '';
+      return `
+        <div class="${rowClass}" ${style} onclick="App.onTeamTap('${e.team}')">
+          <span class="col-rank">${i + 1}</span>
+          <div class="col-team-logo">${t.logo ? `<img src="${t.logo}" alt="${t.abbr}" />` : ''}</div>
+          <span class="col-team-name">${t.abbr}</span>
+        </div>`;
+    }).join('');
+
+    const makeScroll = (entries) => entries.map(e => {
+      const noData = !e.m;
+      // Show "—" for NRR when not available (0 means data not provided by API)
+      const nrrStr = noData || e.nrr === 0 ? '—' : (e.nrr >= 0 ? '+' : '') + e.nrr.toFixed(3);
+      const pills  = (e.form||[]).slice(-5).map(r =>
+        `<span class="pill pill-${r}">${r}</span>`).join('');
+      const isSelected = e.team === App.selectedTeam;
+      const rowClass = isSelected ? 'sc-row row-selected' : 'sc-row';
+      const teamColor = TEAM_COLORS[e.team] || '#0a84ff';
+      const colorBg = `rgba(${parseInt(teamColor.slice(1,3),16)},${parseInt(teamColor.slice(3,5),16)},${parseInt(teamColor.slice(5,7),16)},0.1)`;
+      const style = isSelected ? `style="background:${colorBg}"` : '';
+      return `
+        <div class="${rowClass}" ${style} onclick="App.onTeamTap('${e.team}')">
+          <span class="col-stat">${noData ? '—' : e.m}</span>
+          <span class="col-stat">${noData ? '—' : e.w}</span>
+          <span class="col-stat">${noData ? '—' : e.l}</span>
+          <span class="col-nrr">${nrrStr}</span>
+          <span class="col-pts">${noData ? '—' : e.pts}</span>
+          <div class="col-form">${pills}</div>
+        </div>`;
+    }).join('');
+
+    document.getElementById('fz-a').innerHTML = makeFrozen(teams);
+    document.getElementById('sc-a').innerHTML = makeScroll(teams);
+
+    // Timestamp
+    const el = document.getElementById('last-updated');
+    if (el) {
+      const fmt = new Date().toLocaleString('en-IN', {
+        day:'numeric', month:'short', year:'numeric',
+        hour:'2-digit', minute:'2-digit', hour12:true
+      });
+      el.textContent = `Updated ${fmt}`;
+    }
+  },
+
+  schedule(data) {
+    const container = document.getElementById('schedule-list');
+
+    // Filter matches to selected team if specified
+    const filteredData = App.selectedTeam
+      ? data.map(day => ({
+          ...day,
+          matches: day.matches.filter(m =>
+            m.t1 === App.selectedTeam || m.t2 === App.selectedTeam
+          )
+        })).filter(day => day.matches.length > 0)
+      : data;
+
+    container.innerHTML = filteredData.flatMap(day =>
+      day.matches.map(m => {
+        const t1 = TEAMS[m.t1] || { abbr: m.t1, logo: '' };
+        const t2 = TEAMS[m.t2] || { abbr: m.t2, logo: '' };
+        const style = matchCardStyle(m.t1, m.t2);
+        const dateLabel = matchDateLabel(m.dateISO || day.dateISO);
+
+        let center = '';
+        if (m.status === 'live') {
+          center = `<div class="mc-live"><span class="mc-live-dot"></span>LIVE</div>`;
+        } else {
+          center = `
+            <div class="mc-date-block">
+              <span class="mc-date-top">${dateLabel}</span>
+              <span class="mc-date-time">${m.time || ''}</span>
+            </div>`;
+        }
+
+        const venueSection = m.venue ? `
+          <div class="mc-divider"></div>
+          <div class="mc-venue">
+            <div class="mc-venue-icon"><img src="/venue.svg" alt="venue" style="width: 20px; height: 20px;"></div>
+            <span class="mc-venue-text">${m.venue}</span>
+          </div>
+        ` : '';
+
+        return `
+          <div class="match-card" style="${style}" onclick="App.onMatchTap('${m.id}','${m.t1}','${m.t2}')">
+            <div class="mc-top">
+              <div class="mc-team">
+                <img class="mc-logo" src="${t1.logo}" alt="${t1.abbr}">
+                <span class="mc-abbr">${t1.abbr}</span>
+              </div>
+              ${center}
+              <div class="mc-team">
+                <img class="mc-logo" src="${t2.logo}" alt="${t2.abbr}">
+                <span class="mc-abbr">${t2.abbr}</span>
+              </div>
+            </div>
+            ${venueSection}
+          </div>`;
+      })
+    ).join('');
+
+    // Check for text overflow and apply animation effect only when needed
+    setTimeout(() => {
+      document.querySelectorAll('.mc-venue-text').forEach(el => {
+        const hasOverflow = el.scrollWidth > el.clientWidth;
+        const container = el.closest('.mc-venue');
+
+        if (hasOverflow) {
+          // Apply fade effect for overflow text
+          el.classList.add('truncate-fade');
+        } else {
+          el.classList.remove('truncate-fade');
+        }
+      });
+    }, 0);
+  },
+
+  pointsError() {
+    const errorState    = document.getElementById('pt-error-state');
+    const emptyState    = document.getElementById('pt-empty-state');
+    const pointsSection = document.querySelector('.points-section');
+    const legend        = document.querySelector('.legend');
+    const groupHeader   = document.querySelector('.group-header');
+
+    if (errorState)     errorState.style.display = 'block';
+    if (emptyState)     emptyState.style.display = 'none';
+    if (pointsSection)  pointsSection.style.display = 'none';
+    if (legend)         legend.style.display = 'none';
+    if (groupHeader)    groupHeader.style.display = 'none';
+  },
+
+  error(containerId, onRetry) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+    el.innerHTML = `
+      <div class="error-state">
+        <div class="error-icon">⚠️</div>
+        <div class="error-title">Couldn't load data</div>
+        <div class="error-msg">Check your connection and try again.</div>
+        <button class="retry-btn" onclick="${onRetry}()">Try Again</button>
+      </div>`;
+  },
+
+  skeletonPoints() {
+    const fz = skeletonFrozenRows(10);
+    const sc = skeletonScrollRows(10);
+    document.getElementById('fz-a').innerHTML = fz;
+    document.getElementById('sc-a').innerHTML = sc;
+  },
+
+  skeletonSchedule() {
+    document.getElementById('schedule-list').innerHTML = skeletonCards(3);
+  },
+};
+
+
+/* ═══════════════════════════════════════════════════════════
+   6. SCROLL SYNC
+   Both sc-col elements scroll together so Group A and Group B
+   always show the same horizontal position.
+   ═══════════════════════════════════════════════════════════ */
+function initScrollSync() {
+  const scA  = document.getElementById('sc-col-a');
+  const hdrA = document.getElementById('sc-hdr-a');
+  if (!scA || !hdrA) return;
+
+  const cards = document.querySelectorAll('.group-card');
+  let rafId = null;
+  let activeEl = null; // tracks which element the user is actually scrolling
+
+  function syncFrom(source) {
+    if (rafId) return;
+    rafId = requestAnimationFrame(() => {
+      const x = source.scrollLeft;
+      cards.forEach(c => c.classList.toggle('is-scrolled', x > 0));
+      // Write to the OTHER element only — never back to the source
+      if (source === scA)  hdrA.scrollLeft = x;
+      if (source === hdrA) scA.scrollLeft  = x;
+      rafId = null;
+    });
+  }
+
+  [scA, hdrA].forEach(el => {
+    el.addEventListener('touchstart', () => { activeEl = el; }, { passive: true });
+    el.addEventListener('scroll', () => {
+      // Only the element the user is touching drives the sync
+      if (activeEl && activeEl !== el) return;
+      syncFrom(el);
+    }, { passive: true });
+  });
+}
+
+
+/* ═══════════════════════════════════════════════════════════
+   7. APP CONTROLLER
+   ═══════════════════════════════════════════════════════════ */
+const App = {
+  currentTab: 'schedule',
+
+  async init() {
+    // Parse ?team=MI from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    let selectedTeam = urlParams.get('team');
+
+    // Validate against available teams
+    if (selectedTeam && !(selectedTeam.toUpperCase() in TEAMS)) {
+      selectedTeam = null; // Ignore invalid team
+    }
+
+    App.selectedTeam = selectedTeam; // Store globally
+
+    // Update badge if team is selected
+    if (App.selectedTeam) {
+      const badge = document.getElementById('team-filter-badge');
+      const team = TEAMS[App.selectedTeam];
+      document.getElementById('badge-logo').src = team.logo;
+      document.getElementById('badge-text').textContent = App.selectedTeam;
+      badge.style.display = 'flex';
+    }
+
+    Render.skeletonSchedule();
+    Render.skeletonPoints();
+    initScrollSync();
+    await this._loadAll();
+    Bridge.send('PAGE_READY', { tab: this.currentTab });
+  },
+
+  async _loadAll() {
+    const btn = document.getElementById('refresh-btn');
+    btn.classList.add('spinning');
+
+    const [scheduleResult, pointsResult] = await Promise.allSettled([
+      API.getSchedule(),
+      API.getPointsTable(),
+    ]);
+
+    btn.classList.remove('spinning');
+
+    if (scheduleResult.status === 'fulfilled') {
+      App.cachedSchedule = scheduleResult.value;
+      Render.schedule(scheduleResult.value);
+    } else {
+      // On failure show empty dash state (not error screen) so page looks clean
+      Render.schedule([]);
+      Bridge.send('DATA_ERROR', { source:'schedule', error:scheduleResult.reason?.message });
+    }
+
+    if (pointsResult.status === 'fulfilled') {
+      App.cachedPoints = pointsResult.value;
+      Render.pointsTable(pointsResult.value);
+    } else {
+      // 2026 API hard failure — show the error state with retry button
+      if (currentSeason === '2026') Render.pointsError();
+      else Render.pointsTable({ teams: [] });
+      Bridge.send('DATA_ERROR', { source:'points', error:pointsResult.reason?.message });
+    }
+  },
+
+  async refresh() {
+    Bridge.send('REFRESH_TRIGGERED');
+    await this._loadAll();
+  },
+
+  async retrySchedule() {
+    document.getElementById('schedule-list').innerHTML = skeletonCards(3);
+    try { Render.schedule(await API.getSchedule()); }
+    catch { Render.schedule([]); }
+  },
+
+  async retryPoints() {
+    Render.skeletonPoints();
+    try { Render.pointsTable(await API.getPointsTable()); }
+    catch {
+      if (currentSeason === '2026') Render.pointsError();
+      else Render.pointsTable({ teams: [] });
+    }
+  },
+
+  switchTab(tab) {
+    this.currentTab = tab;
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+    document.getElementById(`tab-${tab}`).classList.add('active');
+    document.getElementById(`btn-${tab}`).classList.add('active');
+    Bridge.send('TAB_CHANGED', { tab });
+  },
+
+  setSeason(season) {
+    currentSeason = season;
+    // Update control panel season buttons
+    document.getElementById('ctrl-season-2025')?.classList.toggle('active', season === '2025');
+    document.getElementById('ctrl-season-2026')?.classList.toggle('active', season === '2026');
+    Render.skeletonSchedule();
+    Render.skeletonPoints();
+    this._loadAll();
+  },
+
+  toggleControlPanel() {
+    const panel = document.getElementById('control-panel');
+    const toggle = document.getElementById('control-panel-toggle');
+    const isOpen = panel.style.display !== 'none';
+
+    panel.style.display = isOpen ? 'none' : 'block';
+    toggle.style.display = isOpen ? 'flex' : 'none';
+
+    if (panel.style.display === 'block' && !panel.dataset.initialized) {
+      this.generateTeamButtons();
+    }
+  },
+
+  generateTeamButtons() {
+    const grid = document.getElementById('control-team-grid');
+    const teams = Object.keys(TEAMS);
+
+    grid.innerHTML = teams.map(team => `
+      <button class="control-team-btn${App.selectedTeam === team ? ' active' : ''}"
+              onclick="App.setTeam('${team}')"
+              title="${team}">
+        <img src="${TEAMS[team].logo}" alt="${team}" />
+      </button>
+    `).join('');
+
+    document.getElementById('control-panel').dataset.initialized = 'true';
+  },
+
+  setTeam(team) {
+    App.selectedTeam = team;
+
+    const url = new URL(window.location);
+    url.searchParams.set('team', team);
+    window.history.replaceState({}, '', url);
+
+    const badge = document.getElementById('team-filter-badge');
+    const teamObj = TEAMS[team];
+    document.getElementById('badge-logo').src = teamObj.logo;
+    document.getElementById('badge-text').textContent = team;
+    badge.style.display = 'flex';
+
+    document.querySelectorAll('.control-team-btn').forEach(btn =>
+      btn.classList.remove('active')
+    );
+    event.target.closest('.control-team-btn')?.classList.add('active');
+
+    Render.schedule(App.cachedSchedule || []);
+    Render.pointsTable(App.cachedPoints || {});
+  },
+
+  clearTeamFilter() {
+    App.selectedTeam = null;
+
+    const url = new URL(window.location);
+    url.searchParams.delete('team');
+    window.history.replaceState({}, '', url);
+
+    document.getElementById('team-filter-badge').style.display = 'none';
+
+    document.querySelectorAll('.control-team-btn').forEach(btn =>
+      btn.classList.remove('active')
+    );
+
+    document.querySelectorAll('.control-season-btn').forEach(btn =>
+      btn.classList.remove('active')
+    );
+    document.getElementById(`ctrl-season-${currentSeason}`).classList.add('active');
+
+    Render.schedule(App.cachedSchedule || []);
+    Render.pointsTable(App.cachedPoints || {});
+  },
+
+  onMatchTap(id, t1, t2) { Bridge.send('MATCH_TAPPED', { matchId:id, t1, t2 }); },
+  onTeamTap(team)         { Bridge.send('TEAM_TAPPED',  { team }); },
+  onBackPressed()         { Bridge.send('CLOSE_WEBVIEW'); },
+};
+
+App.init();
+</script>
+
+<!-- Floating Presentation Controls Panel -->
+<div id="control-panel-toggle" class="control-panel-toggle" onclick="App.toggleControlPanel()">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/>
+  </svg>
+</div>
+
+<div id="control-panel" class="control-panel" style="display: none;">
+  <div class="control-panel-header">
+    <h3>Presentation Controls</h3>
+    <button class="control-panel-close" onclick="App.toggleControlPanel()">✕</button>
+  </div>
+
+  <div class="control-panel-section">
+    <h4>Season</h4>
+    <div class="control-season-toggle">
+      <button class="control-season-btn" id="ctrl-season-2025" onclick="App.setSeason('2025')" style="display:none;">Mock Data</button>
+      <button class="control-season-btn active" id="ctrl-season-2026" onclick="App.setSeason('2026')">2026</button>
+    </div>
+  </div>
+
+  <div class="control-panel-section">
+    <h4>Team</h4>
+    <div class="control-team-grid" id="control-team-grid">
+      <!-- Team buttons will be generated via JavaScript -->
+    </div>
+    <button class="control-clear-team" onclick="App.clearTeamFilter()">Show All Teams</button>
+  </div>
+</div>
+
+</body>
+</html>
