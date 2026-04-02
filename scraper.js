@@ -48,7 +48,7 @@ async function scrapeIPLTable() {
       'https://www.cricbuzz.com/cricket-series/5969/indian-premier-league-2026/points-table',
       {
         headers: {
-          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36',
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
         },
         timeout: 15000,
       }
@@ -57,56 +57,80 @@ async function scrapeIPLTable() {
     const $ = load(response.data);
     const teams = [];
 
-    // Parse Cricbuzz points table
-    // Try multiple selectors as Cricbuzz structure may vary
-    const rows = $('table tbody tr, .cb-srs-item, div[class*="points"]');
+    // Try to find the points table - Cricbuzz uses various table structures
+    let rows = $('table tbody tr');
 
     if (rows.length === 0) {
-      console.log('[Scraper] No rows found, trying alternative selectors...');
-      // Try alternative approach
-      const teamElements = $('.cskip-4, [class*="team"]');
-      console.log('[Scraper] Found', teamElements.length, 'elements with alternative selector');
+      console.log('[Scraper] Standard table not found, trying alternative selectors...');
+      rows = $('tr[class*="row"]');
     }
+
+    if (rows.length === 0) {
+      console.log('[Scraper] No table rows found at all');
+      return null;
+    }
+
+    console.log(`[Scraper] Found ${rows.length} rows, attempting to parse...`);
 
     rows.each((index, element) => {
       try {
-        const cells = $(element).find('td, div[class*="cell"]');
-        if (cells.length < 4) return; // Need at least team, matches, wins, losses
+        const $row = $(element);
+        const cells = $row.find('td');
 
-        const teamName = $(cells[0]).text().trim();
-        const matches = parseInt($(cells[1]).text()) || 0;
-        const wins = parseInt($(cells[2]).text()) || 0;
-        const losses = parseInt($(cells[3]).text()) || 0;
+        if (cells.length < 5) return; // Need minimum columns
 
-        // NRR might be in different position
+        // Extract text from each cell, handling nested elements
+        const teamCell = $(cells[0]).text().trim();
+        const mText = $(cells[1]).text().trim();
+        const wText = $(cells[2]).text().trim();
+        const lText = $(cells[3]).text().trim();
+
+        // Find NRR (usually has decimal point)
         let nrr = 0;
-        for (let i = 0; i < cells.length; i++) {
-          const text = $(cells[i]).text().trim();
-          if (text.includes('.') && !isNaN(parseFloat(text))) {
-            nrr = parseFloat(text);
+        let nrrCell = -1;
+        for (let i = 3; i < cells.length; i++) {
+          const cellText = $(cells[i]).text().trim();
+          if ((cellText.includes('.') || cellText === '-') && !isNaN(parseFloat(cellText || '0'))) {
+            nrr = parseFloat(cellText) || 0;
+            nrrCell = i;
             break;
           }
         }
 
-        // Points is usually last
-        const pts = parseInt($(cells[cells.length - 1]).text()) || 0;
+        // Points is usually after NRR
+        let pts = 0;
+        if (nrrCell >= 0) {
+          const ptsText = $(cells[nrrCell + 1]).text().trim();
+          pts = parseInt(ptsText) || 0;
+        } else {
+          pts = parseInt($(cells[cells.length - 1]).text()) || 0;
+        }
 
-        if (teamName && matches > 0) {
-          // Normalize team name to abbreviation
-          const abbr = teamName
+        const matches = parseInt(mText) || 0;
+        const wins = parseInt(wText) || 0;
+        const losses = parseInt(lText) || 0;
+
+        // Only add if we have a team name and valid match data
+        if (teamCell && matches > 0) {
+          // Extract team abbreviation from full name
+          const abbr = teamCell
+            .split(/\s+/)[0] // Get first word
             .substring(0, 4)
             .toUpperCase()
-            .replace(/\s/g, '');
+            .replace(/\W/g, '');
 
-          teams.push({
-            team: abbr,
-            m: matches,
-            w: wins,
-            l: losses,
-            nrr: Math.round(nrr * 1000) / 1000, // Round to 3 decimals
-            pts,
-            form: [],
-          });
+          if (abbr.length >= 2) {
+            teams.push({
+              team: abbr,
+              m: matches,
+              w: wins,
+              l: losses,
+              nrr: Math.round(nrr * 1000) / 1000,
+              pts,
+              form: [],
+            });
+            console.log(`[Scraper] Parsed: ${abbr} - ${matches}M ${wins}W ${losses}L ${pts}pts NRR:${nrr}`);
+          }
         }
       } catch (err) {
         console.warn('[Scraper] Error parsing row:', err.message);
@@ -121,7 +145,7 @@ async function scrapeIPLTable() {
       return cachedTeams;
     }
 
-    console.warn(`[Scraper] Parsed ${teams.length} teams, expected 10. HTML structure may have changed.`);
+    console.warn(`[Scraper] Parsed ${teams.length} teams, expected 10. Cricbuzz structure may have changed.`);
     return null;
 
   } catch (err) {
