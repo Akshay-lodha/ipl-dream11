@@ -1,15 +1,9 @@
-/**
- * GET /api/multi-source-stats
- *
- * Returns IPL 2026 points table from CricketData.org API
- * Caches responses for 5 minutes to stay within rate limits
- *
- * Rate limit: 2000 hits/day with 5-min cache = ~288 calls/day (14% of limit)
- */
+// IPL 2026 Points Table Endpoint - CricketData.org API
+// This endpoint fetches live IPL standings from CricketData.org S Tier (2000 hits/day)
+// 5-minute internal caching keeps us at ~288 calls/day = 14% of limit
 
 import { fetchFromCricketData } from './cricket-data-api.js';
 
-// Version 2: CricketData.org S Tier integration (2000 hits/day)
 export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -22,13 +16,13 @@ export default async function handler(req, res) {
     return;
   }
 
-  // Set cache headers: 60 seconds max-age for browser, allow stale for 30s
+  // Set cache headers: 60 seconds max-age for browser, 300 seconds server-side
   res.setHeader('Cache-Control', 'public, s-maxage=60, stale-while-revalidate=30');
 
   try {
     const season = req.query.season || '2026';
 
-    // Fetch data from CricketData.org (cached internally for 5 minutes)
+    // Fetch from CricketData.org (cached internally for 5 minutes)
     const data = await fetchFromCricketData();
 
     if (!data || !data.teams || data.teams.length === 0) {
@@ -39,7 +33,7 @@ export default async function handler(req, res) {
       });
     }
 
-    // Return standardized response
+    // Return response with rate limit info
     return res.status(200).json({
       teams: data.teams,
       source: data.source,
@@ -52,7 +46,6 @@ export default async function handler(req, res) {
         estimated_daily_usage: '288 calls (14%)',
         cache_duration: '5 minutes',
       },
-      _debug: 'NEW_CRICKETDATA_CODE_RUNNING',
     });
   } catch (err) {
     console.error('[API] Error:', err.message);
@@ -63,4 +56,3 @@ export default async function handler(req, res) {
     });
   }
 }
-// Deployment trigger: 1775119561
