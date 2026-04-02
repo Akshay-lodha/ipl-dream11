@@ -38,6 +38,88 @@ const FALLBACK_TEAMS = [
 ];
 
 /**
+ * Scrape IPL points table from ESPN Cricinfo
+ */
+async function scrapeFromESPNCricinfo() {
+  try {
+    console.log('[Scraper] Trying ESPN Cricinfo...');
+    const response = await axios.get(
+      'https://www.espncricinfo.com/cricket/series/indian-premier-league-2026-1410320/points-table',
+      {
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+        },
+        timeout: 15000,
+      }
+    );
+
+    const $ = load(response.data);
+    const teams = [];
+    const rows = $('table tbody tr, tr[class*="row"]');
+
+    if (rows.length < 8) {
+      console.log('[Scraper] ESPN Cricinfo: Not enough rows found');
+      return null;
+    }
+
+    rows.each((index, element) => {
+      try {
+        const cells = $(element).find('td');
+        if (cells.length < 5) return;
+
+        const teamCell = $(cells[0]).text().trim();
+        const mText = $(cells[1]).text().trim();
+        const wText = $(cells[2]).text().trim();
+        const lText = $(cells[3]).text().trim();
+
+        const matches = parseInt(mText) || 0;
+        const wins = parseInt(wText) || 0;
+        const losses = parseInt(lText) || 0;
+
+        // Extract NRR
+        let nrr = 0;
+        for (let i = 4; i < cells.length; i++) {
+          const cellText = $(cells[i]).text().trim();
+          if (cellText.includes('.') || cellText === '-') {
+            nrr = parseFloat(cellText) || 0;
+            break;
+          }
+        }
+
+        // Points is usually last
+        const pts = parseInt($(cells[cells.length - 1]).text()) || 0;
+
+        if (teamCell && matches > 0) {
+          const abbr = teamCell.substring(0, 4).toUpperCase().replace(/\s/g, '');
+          if (abbr.length >= 2) {
+            teams.push({
+              team: abbr,
+              m: matches,
+              w: wins,
+              l: losses,
+              nrr: Math.round(nrr * 1000) / 1000,
+              pts,
+              form: [],
+            });
+          }
+        }
+      } catch (e) {
+        // Silently continue
+      }
+    });
+
+    if (teams.length >= 8) {
+      console.log(`[Scraper] ✓ ESPN Cricinfo: Scraped ${teams.length} teams`);
+      return teams.sort((a, b) => b.pts - a.pts || b.nrr - a.nrr);
+    }
+    return null;
+  } catch (err) {
+    console.log('[Scraper] ESPN Cricinfo failed:', err.message);
+    return null;
+  }
+}
+
+/**
  * Scrape IPL points table from Cricbuzz
  */
 async function scrapeIPLTable() {
@@ -145,11 +227,27 @@ async function scrapeIPLTable() {
       return cachedTeams;
     }
 
-    console.warn(`[Scraper] Parsed ${teams.length} teams, expected 10. Cricbuzz structure may have changed.`);
+    // If Cricbuzz fails, try ESPN Cricinfo
+    console.warn(`[Scraper] Cricbuzz failed (${teams.length} teams). Trying ESPN Cricinfo...`);
+    const espnTeams = await scrapeFromESPNCricinfo();
+    if (espnTeams && espnTeams.length >= 8) {
+      cachedTeams = espnTeams;
+      lastScrapedAt = new Date();
+      return espnTeams;
+    }
+
+    console.warn(`[Scraper] Both sources failed. Using fallback data.`);
     return null;
 
   } catch (err) {
     console.error('[Scraper] Error scraping Cricbuzz:', err.message);
+    // Try ESPN Cricinfo as fallback
+    const espnTeams = await scrapeFromESPNCricinfo();
+    if (espnTeams && espnTeams.length >= 8) {
+      cachedTeams = espnTeams;
+      lastScrapedAt = new Date();
+      return espnTeams;
+    }
     return null;
   }
 }
