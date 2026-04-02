@@ -33,7 +33,7 @@ async function fetchFromCricketData() {
 
     // Call CricketData API for points table
     const response = await fetch(
-      `https://cricketdata.org/api/v1/series_points/?series_id=${IPL_2026_SERIES_ID}&api_key=${API_KEY}`
+      `https://api.cricapi.com/v1/series_points?apikey=${API_KEY}&id=${IPL_2026_SERIES_ID}`
     );
 
     if (!response.ok) {
