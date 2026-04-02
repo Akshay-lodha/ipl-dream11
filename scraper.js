@@ -17,6 +17,7 @@ dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use(express.static('public')); // Serve admin dashboard and static files
 
 // In-memory cache
 let cachedTeams = null;
