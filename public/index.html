@@ -458,25 +458,6 @@
       letter-spacing: 0.8px;
     }
 
-    .control-season-toggle {
-      display: flex; gap: 0;
-      background: rgba(255, 255, 255, 0.08); padding: 0;
-      border-radius: 10px; border: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .control-season-btn {
-      flex: 1; padding: 10px 12px;
-      background: transparent; border: none;
-      color: rgba(255, 255, 255, 0.6); font-size: 13px; font-weight: 600;
-      border-radius: 0; cursor: pointer;
-      transition: all 0.2s;
-    }
-    .control-season-btn:first-child {
-      border-right: 1px solid rgba(255, 255, 255, 0.1);
-    }
-    .control-season-btn.active {
-      background: rgba(10, 132, 255, 0.8); color: white;
-    }
-
     .control-team-grid {
       display: grid; grid-template-columns: repeat(5, 1fr);
       gap: 8px; margin-bottom: 12px;
@@ -1279,11 +1260,6 @@ const App = {
       btn.classList.remove('active')
     );
 
-    document.querySelectorAll('.control-season-btn').forEach(btn =>
-      btn.classList.remove('active')
-    );
-    document.getElementById(`ctrl-season-${currentSeason}`).classList.add('active');
-
     Render.schedule(App.cachedSchedule || []);
     Render.pointsTable(App.cachedPoints || {});
   },
@@ -1307,14 +1283,6 @@ App.init();
   <div class="control-panel-header">
     <h3>Presentation Controls</h3>
     <button class="control-panel-close" onclick="App.toggleControlPanel()">✕</button>
-  </div>
-
-  <div class="control-panel-section">
-    <h4>Season</h4>
-    <div class="control-season-toggle">
-      <button class="control-season-btn" id="ctrl-season-2025" onclick="App.setSeason('2025')" style="display:none;">Mock Data</button>
-      <button class="control-season-btn active" id="ctrl-season-2026" onclick="App.setSeason('2026')">2026</button>
-    </div>
   </div>
 
   <div class="control-panel-section">
