@@ -49,17 +49,21 @@ async function fetchFromCricketData() {
       return null;
     }
 
-    const teams = data.data.map(team => ({
-      team: normalizeTeamName(team.short_name || team.name || ''),
-      m: parseInt(team.matches) || 0,
-      w: parseInt(team.wins) || 0,
-      l: parseInt(team.losses) || 0,
-      nrr: parseFloat(team.nrr) || 0,
-      pts: parseInt(team.points) || 0,
-      form: parseForm(team.recent_form || ''),
-    }));
+    const teams = data.data.map(team => {
+      const wins = parseInt(team.wins) || 0;
+      const pts = wins * 2; // IPL: 2 points per win
+      return {
+        team: team.shortname || normalizeTeamName(team.teamname || ''),
+        m: parseInt(team.matches) || 0,
+        w: wins,
+        l: parseInt(team.loss) || 0,
+        nrr: parseFloat(team.nrr) || 0,
+        pts,
+        form: parseForm(team.recent_form || ''),
+      };
+    });
 
-    // Sort by points and NRR
+    // Sort by points desc, then NRR desc
     teams.sort((a, b) => b.pts - a.pts || b.nrr - a.nrr);
 
     const result = {
