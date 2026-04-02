@@ -4,6 +4,8 @@
  * Self-Hosted IPL Data Scraper
  * Runs as standalone service - no rate limits
  * Deploy to Railway, Render, or any Node.js host
+ *
+ * Data persistence: Saves to data.json so updates survive restarts
  */
 
 import axios from 'axios';
@@ -11,6 +13,12 @@ import { load } from 'cheerio';
 import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const DATA_FILE = path.join(__dirname, 'data.json');
 
 dotenv.config();
 
@@ -19,10 +27,45 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static('public')); // Serve admin dashboard and static files
 
-// In-memory cache
+// In-memory cache with file persistence
 let cachedTeams = null;
 let lastScrapedAt = null;
 const CACHE_DURATION_MS = 30 * 60 * 1000; // 30 minutes
+
+/**
+ * Load teams from persistent file storage
+ */
+function loadTeamsFromFile() {
+  try {
+    if (fs.existsSync(DATA_FILE)) {
+      const data = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+      cachedTeams = data.teams;
+      lastScrapedAt = new Date(data.lastScrapedAt);
+      console.log(`[Scraper] Loaded ${cachedTeams.length} teams from data.json`);
+      return true;
+    }
+  } catch (err) {
+    console.warn('[Scraper] Failed to load from file:', err.message);
+  }
+  return false;
+}
+
+/**
+ * Save teams to persistent file storage
+ */
+function saveTeamsToFile() {
+  try {
+    const data = {
+      teams: cachedTeams,
+      lastScrapedAt: lastScrapedAt,
+      updatedAt: new Date().toISOString(),
+    };
+    fs.writeFileSync(DATA_FILE, JSON.stringify(data, null, 2));
+    console.log('[Scraper] Saved teams to data.json');
+  } catch (err) {
+    console.error('[Scraper] Failed to save to file:', err.message);
+  }
+}
 
 // Fallback data
 const FALLBACK_TEAMS = [
@@ -225,6 +268,7 @@ async function scrapeIPLTable() {
       console.log(`[Scraper] ✓ Successfully scraped ${teams.length} teams`);
       cachedTeams = teams.sort((a, b) => b.pts - a.pts || b.nrr - a.nrr);
       lastScrapedAt = new Date();
+      saveTeamsToFile(); // Persist to file
       return cachedTeams;
     }
 
@@ -374,6 +418,7 @@ app.post('/api/update', (req, res) => {
     // Sort by points and NRR
     cachedTeams = validTeams.sort((a, b) => b.pts - a.pts || b.nrr - a.nrr);
     lastScrapedAt = new Date();
+    saveTeamsToFile(); // Persist to file
 
     console.log(`[Manual Update] Updated ${cachedTeams.length} teams at ${lastScrapedAt.toISOString()}`);
 
@@ -394,9 +439,13 @@ app.post('/api/update', (req, res) => {
  */
 const PORT = process.env.PORT || 3000;
 
-// Initial scrape on startup
+// Load from file first, then try to scrape
 console.log('[Scraper] Starting IPL data scraper...');
-await scrapeIPLTable();
+const fileLoaded = loadTeamsFromFile();
+if (!fileLoaded) {
+  console.log('[Scraper] No saved data found, attempting to scrape...');
+  await scrapeIPLTable();
+}
 
 // Periodic scraping every 30 minutes
 setInterval(() => {
