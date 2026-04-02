@@ -75,7 +75,7 @@ export default async function handler(req, res) {
   const cacheAge = season === '2025' ? 86400 : 60;
   res.setHeader('Cache-Control', `s-maxage=${cacheAge}, stale-while-revalidate=30`);
 
-  const { CRICKET_API_KEY, IPL_SERIES_ID, IPL_2025_SERIES_ID } = process.env;
+  const { CRICKET_API_KEY, CRICKETDATA_API_KEY, IPL_SERIES_ID, IPL_2025_SERIES_ID } = process.env;
 
   // Use env-configured series IDs if available (supports switching between seasons).
   // Otherwise fall back to a known-good 2026 series ID so the weblink works out of the box.
@@ -84,7 +84,12 @@ export default async function handler(req, res) {
     || (season === '2025' ? '' : DEFAULT_SERIES_ID_2026);
 
   // Prefer env key, otherwise default to the 2026 key used by the points table integration.
-  const apiKey = (CRICKET_API_KEY && CRICKET_API_KEY.trim()) || DEFAULT_CRICAPI_KEY_2026;
+  // Some deployments name the key `CRICKETDATA_API_KEY` (even when used for CricAPI).
+  // Accept both to avoid silent failures.
+  const apiKey =
+    (CRICKET_API_KEY && CRICKET_API_KEY.trim()) ||
+    (CRICKETDATA_API_KEY && CRICKETDATA_API_KEY.trim()) ||
+    DEFAULT_CRICAPI_KEY_2026;
 
   if (!seriesId) {
     return res.status(500).json({
