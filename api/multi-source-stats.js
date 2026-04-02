@@ -9,6 +9,7 @@
 
 import { fetchFromCricketData } from './cricket-data-api.js';
 
+// Version 2: CricketData.org S Tier integration (2000 hits/day)
 export default async function handler(req, res) {
   // CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
