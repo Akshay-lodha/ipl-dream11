@@ -239,7 +239,7 @@
     window.addEventListener('load', () => {
       initializeTeams();
       refreshStatus();
-      setInterval(refreshStatus, 30000); // Refresh every 30s
+      setInterval(refreshStatus, 60000); // Refresh status every 60s (not form data)
     });
 
     function initializeTeams() {
@@ -417,8 +417,8 @@
           </tr>
         `).join('');
 
-        // Load into form
-        loadTemplate('current');
+        // DON'T auto-load into form - user is editing it!
+        // Only load if they click "Load Current" button
       } catch (err) {
         console.error('Failed to refresh:', err);
       }
