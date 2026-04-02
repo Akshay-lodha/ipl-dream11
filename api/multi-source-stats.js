@@ -180,11 +180,12 @@ export default async function handler(req, res) {
   const cacheKey = `multi-source-stats_${season}`;
 
   try {
-    // Check cache first
-    const cached = getCached(cacheKey);
-    if (cached) {
-      return res.status(200).json(cached);
-    }
+    // TODO: Temporarily disabled cache to ensure fresh data from updated scraper
+    // Re-enable caching after manual updates are confirmed working
+    // const cached = getCached(cacheKey);
+    // if (cached) {
+    //   return res.status(200).json(cached);
+    // }
 
     // Series IDs - adjust based on season
     const seriesId = '87c62aac-bc3c-4738-ab93-19da0690488f'; // IPL 2026 ID
@@ -259,7 +260,8 @@ export default async function handler(req, res) {
       timestamp: new Date().toISOString(),
     };
 
-    setCached(cacheKey, response, 3600);
+    // TODO: Temporarily disabled caching - re-enable after manual updates working
+    // setCached(cacheKey, response, 3600);
     return res.status(200).json(response);
 
   } catch (err) {
