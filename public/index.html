@@ -240,6 +240,8 @@
     .pill-W { background: var(--w-bg); color: var(--w-text); }
     .pill-L { background: var(--l-bg); color: var(--l-text); }
     .pill-D { background: var(--d-bg); color: var(--d-text); }
+    .pill-N { background: var(--d-bg); color: var(--d-text); }
+    .pill-A { background: var(--d-bg); color: var(--d-text); }
 
     /* Legend + Last Updated */
     .legend {
@@ -572,7 +574,7 @@
     <div class="legend">
       <div class="legend-item"><div class="legend-dot" style="background:var(--w-bg);border:1px solid var(--w-text)"></div> Win</div>
       <div class="legend-item"><div class="legend-dot" style="background:var(--l-bg);border:1px solid var(--l-text)"></div> Loss</div>
-      <div class="legend-item"><div class="legend-dot" style="background:var(--d-bg);border:1px solid var(--d-text)"></div> Draw</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--d-bg);border:1px solid var(--d-text)"></div> Abandoned</div>
       <div class="last-updated" id="last-updated"></div>
     </div>
 
@@ -705,14 +707,14 @@ const API = (() => {
   // Actual 2025 IPL final league standings (season ended May 27, 2025)
   const MOCK_POINTS_TABLE_2025 = {
     teams: [
-      { team: 'PBKS', m: 14, w: 9, l: 4,  nrr:  0.372, pts: 19, form: ['W', 'W', 'W', 'D', 'W'] },
-      { team: 'RCB',  m: 14, w: 9, l: 4,  nrr:  0.301, pts: 19, form: ['W', 'W', 'L', 'W', 'D'] },
+      { team: 'PBKS', m: 14, w: 9, l: 4,  nrr:  0.372, pts: 19, form: ['W', 'W', 'W', 'A', 'W'] },
+      { team: 'RCB',  m: 14, w: 9, l: 4,  nrr:  0.301, pts: 19, form: ['W', 'W', 'L', 'W', 'A'] },
       { team: 'GT',   m: 14, w: 9, l: 5,  nrr:  0.254, pts: 18, form: ['W', 'W', 'L', 'W', 'W'] },
       { team: 'MI',   m: 14, w: 8, l: 6,  nrr:  1.142, pts: 16, form: ['W', 'L', 'W', 'W', 'L'] },
-      { team: 'DC',   m: 14, w: 7, l: 6,  nrr:  0.011, pts: 15, form: ['W', 'L', 'D', 'W', 'L'] },
-      { team: 'SRH',  m: 14, w: 6, l: 7,  nrr: -0.241, pts: 13, form: ['L', 'W', 'L', 'D', 'L'] },
+      { team: 'DC',   m: 14, w: 7, l: 6,  nrr:  0.011, pts: 15, form: ['W', 'L', 'A', 'W', 'L'] },
+      { team: 'SRH',  m: 14, w: 6, l: 7,  nrr: -0.241, pts: 13, form: ['L', 'W', 'L', 'A', 'L'] },
       { team: 'LSG',  m: 14, w: 6, l: 8,  nrr: -0.376, pts: 12, form: ['L', 'L', 'W', 'L', 'W'] },
-      { team: 'KKR',  m: 14, w: 5, l: 7,  nrr: -0.305, pts: 12, form: ['W', 'L', 'D', 'L', 'D'] },
+      { team: 'KKR',  m: 14, w: 5, l: 7,  nrr: -0.305, pts: 12, form: ['W', 'L', 'A', 'L', 'A'] },
       { team: 'RR',   m: 14, w: 4, l: 10, nrr: -0.456, pts:  8, form: ['L', 'L', 'L', 'W', 'L'] },
       { team: 'CSK',  m: 14, w: 4, l: 10, nrr: -0.567, pts:  8, form: ['L', 'L', 'W', 'L', 'L'] }
     ]

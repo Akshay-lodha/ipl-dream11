@@ -77,27 +77,38 @@ async function fetchFromCricketData() {
 
     // Extract completed matches and derive form
     const matchList = seriesInfo?.data?.matchList || [];
-    const completedMatches = matchList.filter(m =>
+    const wonMatches = matchList.filter(m =>
       m.matchEnded && m.status && m.status.toLowerCase().includes('won')
     );
+    // Abandoned / No Result matches — both teams get 1 pt each, shown as 'N' in form
+    const nrMatches = matchList.filter(m => {
+      if (!m.matchEnded) return false;
+      const s = (m.status || '').toLowerCase();
+      return s.includes('abandon') || s.includes('no result');
+    });
 
     // Build form per team (last 5 results, most recent first)
-    const formMap = buildFormMap(completedMatches);
+    const formMap = buildFormMap(wonMatches, nrMatches);
 
-    // Fetch scorecards for NRR (only uncached completed matches)
-    const nrrMap = await buildNrrMap(completedMatches);
+    // Fetch scorecards for NRR (abandoned matches don't affect NRR)
+    const nrrMap = await buildNrrMap(wonMatches);
 
     // Assemble final team data
     const teams = standings.data.map(team => {
       const abbr = norm(team.shortname || team.teamname || '');
-      const wins = parseInt(team.wins) || 0;
+      const m    = parseInt(team.matches) || 0;
+      const wins = parseInt(team.wins)    || 0;
+      const loss = parseInt(team.loss)    || 0;
+      // NR count: derive from standings (m - w - l) — more reliable than matchList status strings
+      // CricAPI already counts abandoned matches in the 'matches' total correctly
+      const nr   = Math.max(0, m - wins - loss);
       return {
         team: abbr,
-        m: parseInt(team.matches) || 0,
+        m,
         w: wins,
-        l: parseInt(team.loss) || 0,
+        l: loss,
         nrr: nrrMap[abbr] || 0,
-        pts: wins * 2,
+        pts: wins * 2 + nr,
         form: formMap[abbr] || [],
       };
     });
@@ -112,7 +123,7 @@ async function fetchFromCricketData() {
     };
 
     setCached('cricketdata_full', result, CACHE_TTL);
-    console.log(`[CricketData] Fetched ${teams.length} teams, ${completedMatches.length} completed matches`);
+    console.log(`[CricketData] Fetched ${teams.length} teams, ${wonMatches.length} won, ${nrMatches.length} abandoned`);
     return result;
   } catch (err) {
     console.error('[CricketData] Error:', err.message);
@@ -121,42 +132,63 @@ async function fetchFromCricketData() {
 }
 
 /**
- * Build form map: { "MI": ["W", "L"], "CSK": ["L"], ... }
- * Derives W/L from match status text, most recent first
+ * Build form map: { "MI": ["W", "L", "N"], "CSK": ["L"], ... }
+ * W = win, L = loss, N = no result / abandoned
+ * Merges won + NR matches sorted by date descending (most recent first).
  */
-function buildFormMap(completedMatches) {
+function buildFormMap(wonMatches, nrMatches) {
   const formMap = {};
 
-  // Sort by date descending (most recent first)
-  const sorted = [...completedMatches].sort((a, b) =>
+  // Tag each match with its result type, then sort all together by date desc
+  const allMatches = [
+    ...wonMatches.map(m => ({ ...m, _type: 'won' })),
+    ...nrMatches.map(m => ({ ...m, _type: 'nr' })),
+  ].sort((a, b) =>
     new Date(b.dateTimeGMT || b.date) - new Date(a.dateTimeGMT || a.date)
   );
 
-  for (const match of sorted) {
-    const status = match.status || '';
+  for (const match of allMatches) {
     const teams = (match.teams || []).map(t => norm(t));
     if (teams.length !== 2) continue;
 
-    // Parse winner from status: "Mumbai Indians won by 6 wkts"
-    let winner = null;
-    for (const [fullName, abbr] of Object.entries(TEAM_NAME_MAP)) {
-      if (status.includes(fullName)) {
-        winner = abbr;
-        break;
+    if (match._type === 'nr') {
+      // Abandoned — both teams get 'A'
+      for (const team of teams) {
+        if (!formMap[team]) formMap[team] = [];
+        if (formMap[team].length < 5) formMap[team].push('A');
       }
-    }
+    } else {
+      // Parse winner from status: "Mumbai Indians won by 6 wkts"
+      const status = match.status || '';
+      let winner = null;
+      for (const [fullName, abbr] of Object.entries(TEAM_NAME_MAP)) {
+        if (status.includes(fullName)) { winner = abbr; break; }
+      }
+      if (!winner) continue;
 
-    if (!winner) continue;
-
-    for (const team of teams) {
-      if (!formMap[team]) formMap[team] = [];
-      if (formMap[team].length < 5) {
-        formMap[team].push(team === winner ? 'W' : 'L');
+      for (const team of teams) {
+        if (!formMap[team]) formMap[team] = [];
+        if (formMap[team].length < 5) formMap[team].push(team === winner ? 'W' : 'L');
       }
     }
   }
 
   return formMap;
+}
+
+/**
+ * Count NR (abandoned) matches per team.
+ * Each abandoned match awards 1 point to both sides.
+ */
+function buildNrCountMap(nrMatches) {
+  const map = {};
+  for (const match of nrMatches) {
+    for (const teamName of (match.teams || [])) {
+      const abbr = norm(teamName);
+      map[abbr] = (map[abbr] || 0) + 1;
+    }
+  }
+  return map;
 }
 
 /**
@@ -219,10 +251,19 @@ async function buildNrrMap(completedMatches) {
     const inning2 = scores[1];
 
     // Determine which team batted in which innings from inning names
+    // Case-insensitive + pick earliest-appearing team name (API sometimes
+    // includes multiple team names comma-separated in the inning string)
     let team1 = null, team2 = null;
+    let team1Pos = Infinity, team2Pos = Infinity;
+    const inning1Lower = (inning1.inning || '').toLowerCase();
+    const inning2Lower = (inning2.inning || '').toLowerCase();
+
     for (const [fullName, abbr] of Object.entries(TEAM_NAME_MAP)) {
-      if (inning1.inning && inning1.inning.includes(fullName)) team1 = abbr;
-      if (inning2.inning && inning2.inning.includes(fullName)) team2 = abbr;
+      const nameLower = fullName.toLowerCase();
+      const pos1 = inning1Lower.indexOf(nameLower);
+      const pos2 = inning2Lower.indexOf(nameLower);
+      if (pos1 !== -1 && pos1 < team1Pos) { team1 = abbr; team1Pos = pos1; }
+      if (pos2 !== -1 && pos2 < team2Pos) { team2 = abbr; team2Pos = pos2; }
     }
 
     if (!team1 || !team2) continue;
